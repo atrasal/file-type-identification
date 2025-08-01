@@ -1,0 +1,3 @@
+NOTE: 
+Don't push the dataset and fragmented data
+Put the extension of the dataset in the .gitignore (e.g *.png)
