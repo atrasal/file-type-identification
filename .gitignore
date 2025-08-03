@@ -6,3 +6,18 @@
 *.bin
 __pycache__
 .venv311
+
+
+# Ignore specific dataset file
+BMP/bmp_dataset_split.npz
+
+# Ignore all .npz files inside forensics/BMP
+BMP/*.npz
+
+#Ignore .npz files anywhere in the project
+*.npz
+
+# Ignore specific folders (if they are directories)
+BMP/bike/
+BMP/bmp_fragments/
+BMP/bmp_headerless/
