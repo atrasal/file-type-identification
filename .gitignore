@@ -13,6 +13,10 @@ BMP/bmp_dataset_split.npz
 
 # Ignore all .npz files inside forensics/BMP
 BMP/*.npz
+BMP/test_bmp_images
+BMP/train_bmp_images
+BMP/fragments_with_header_footer
+BMP/fragments_headerless_footerless
 
 #Ignore .npz files anywhere in the project
 *.npz
