@@ -3,14 +3,18 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
-from sklearn.metrics import classification_report
+from sklearn.metrics import classification_report, accuracy_score
 import tensorflow as tf
 from tensorflow.keras import layers, models
 
-DATASET_DIR = "fragments_dataset"
+# ========== CONFIG ==========
 CHUNK_SIZE = 1024
-MAPPING_FILE = os.path.join(DATASET_DIR, "fragment_mapping.csv")
+TRAIN_DIR = "fragments_dataset"
+TEST_DIR = "test_fragments_dataset"
+TRAIN_MAPPING_FILE = os.path.join(TRAIN_DIR, "fragment_mapping.csv")
+TEST_MAPPING_FILE = os.path.join(TEST_DIR, "fragment_mapping.csv")
 
+# ========== Load Fragment Function ==========
 def load_hex_fragment(path):
     with open(path, 'r') as f:
         hex_str = f.read().strip()
@@ -18,13 +22,14 @@ def load_hex_fragment(path):
             return None
         return [int(hex_str[i:i+2], 16) for i in range(0, len(hex_str), 2)]
 
-def load_fragments():
+# ========== Load Dataset ==========
+def load_fragments(mapping_file, base_dir):
     X, y = [], []
-    mapping_df = pd.read_csv(MAPPING_FILE)
+    mapping_df = pd.read_csv(mapping_file)
     for _, row in mapping_df.iterrows():
         frag_id = row['fragment_id']
         file_type = row['file_type']
-        frag_path = os.path.join(DATASET_DIR, f"{frag_id}.hex")
+        frag_path = os.path.join(base_dir, f"{frag_id}.hex")
         if os.path.exists(frag_path):
             data = load_hex_fragment(frag_path)
             if data and len(data) == CHUNK_SIZE:
@@ -32,6 +37,7 @@ def load_fragments():
                 y.append(file_type)
     return np.array(X), np.array(y)
 
+# ========== Build CNN Model ==========
 def build_model(num_classes):
     model = models.Sequential([
         layers.Input(shape=(CHUNK_SIZE, 1)),
@@ -49,10 +55,50 @@ def build_model(num_classes):
                   metrics=['accuracy'])
     return model
 
+# ========== Evaluate on Unseen Data ==========
+def test_on_unseen_data(model, label_encoder, test_dir):
+    mapping_path = os.path.join(test_dir, "fragment_mapping.csv")
+    if not os.path.exists(mapping_path):
+        print(f"❌ Mapping file not found at: {mapping_path}")
+        return
+
+    mapping_df = pd.read_csv(mapping_path)
+    X_test, y_true = [], []
+
+    for _, row in mapping_df.iterrows():
+        frag_id = row['fragment_id']
+        true_label = row['file_type']
+        frag_path = os.path.join(test_dir, f"{frag_id}.hex")
+
+        if os.path.exists(frag_path):
+            data = load_hex_fragment(frag_path)
+            if data and len(data) == CHUNK_SIZE:
+                X_test.append(data)
+                y_true.append(true_label)
+        else:
+            print(f"⚠️ Missing file: {frag_path}")
+
+    if not X_test:
+        print("⚠️ No valid fragments found in test set.")
+        return
+
+    X_test = np.array(X_test) / 255.0
+    X_test = X_test[..., np.newaxis]
+    y_true_encoded = label_encoder.transform(y_true)
+
+    y_pred_probs = model.predict(X_test)
+    y_pred_encoded = np.argmax(y_pred_probs, axis=1)
+
+    print("\n📊 Classification Report on Unseen Test Data:")
+    print(classification_report(y_true_encoded, y_pred_encoded, target_names=label_encoder.classes_))
+    print(f"✅ Accuracy on Unseen Test Set: {accuracy_score(y_true_encoded, y_pred_encoded):.4f}")
+
+# ========== Main ==========
 def main():
-    X, y = load_fragments()
-    X = X / 255.0  # Normalize
-    X = X[..., np.newaxis]  # Add channel dim for Conv1D
+    # Load training data
+    X, y = load_fragments(TRAIN_MAPPING_FILE, TRAIN_DIR)
+    X = X / 255.0
+    X = X[..., np.newaxis]
 
     label_enc = LabelEncoder()
     y_encoded = label_enc.fit_transform(y)
@@ -62,17 +108,41 @@ def main():
         X, y_encoded, test_size=0.2, stratify=y_encoded, random_state=42
     )
 
-    print(f"Training on {X_train.shape[0]} samples with {len(class_names)} classes.")
+    print(f"📦 Training on {X_train.shape[0]} samples with {len(class_names)} classes.")
 
+    # Train model
     model = build_model(num_classes=len(class_names))
-
     model.fit(X_train, y_train, epochs=15, batch_size=64, validation_split=0.1, verbose=1)
 
+    # Evaluate on internal test split
     y_pred = model.predict(X_test)
     y_pred_labels = np.argmax(y_pred, axis=1)
 
-    print("\n📊 Classification Report (CNN):")
+    print("\n📊 Classification Report (Internal Validation):")
     print(classification_report(y_test, y_pred_labels, target_names=class_names))
+
+    # Evaluate on unseen dataset
+    test_on_unseen_data(model, label_enc, TEST_DIR)
+
+    # 🔁 Prediction loop
+    while True:
+        custom_hex_path = input("\n🔍 Enter path to a .hex file to classify (or type 'exit' to quit): ").strip()
+        if custom_hex_path.lower() == 'exit':
+            print("👋 Exiting prediction loop.")
+            break
+
+        if os.path.exists(custom_hex_path):
+            custom_data = load_hex_fragment(custom_hex_path)
+            if custom_data and len(custom_data) == CHUNK_SIZE:
+                custom_arr = np.array(custom_data) / 255.0
+                custom_arr = custom_arr.reshape(1, CHUNK_SIZE, 1)
+                pred = model.predict(custom_arr)
+                pred_label = np.argmax(pred, axis=1)[0]
+                print(f"✅ Predicted file type: {class_names[pred_label]}")
+            else:
+                print(f"⚠️ Invalid hex data in '{custom_hex_path}'. Must be exactly {CHUNK_SIZE*2} hex characters.")
+        else:
+            print(f"❌ File '{custom_hex_path}' not found.")
 
 if __name__ == "__main__":
     main()

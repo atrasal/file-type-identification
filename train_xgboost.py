@@ -1,10 +1,10 @@
 import os
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import classification_report, accuracy_score
+from xgboost import XGBClassifier
 
 # ========== CONFIG ==========
 CHUNK_SIZE = 1024
@@ -13,7 +13,7 @@ TEST_DIR = "test_fragments_dataset"
 TRAIN_MAPPING_FILE = os.path.join(TRAIN_DIR, "fragment_mapping.csv")
 TEST_MAPPING_FILE = os.path.join(TEST_DIR, "fragment_mapping.csv")
 
-# ========== Load Hex Fragment ==========
+# ========== Load Fragment Function ==========
 def load_hex_fragment(path):
     with open(path, 'r') as f:
         hex_str = f.read().strip()
@@ -21,7 +21,7 @@ def load_hex_fragment(path):
             return None
         return [int(hex_str[i:i+2], 16) for i in range(0, len(hex_str), 2)]
 
-# ========== Load Fragments ==========
+# ========== Load Dataset ==========
 def load_fragments(mapping_file, base_dir):
     X, y = [], []
     mapping_df = pd.read_csv(mapping_file)
@@ -81,15 +81,24 @@ def main():
     y_encoded = label_enc.fit_transform(y)
     class_names = label_enc.classes_
 
-    # Train-test split
+    # Split data
     X_train, X_test, y_train, y_test = train_test_split(
         X, y_encoded, test_size=0.2, stratify=y_encoded, random_state=42
     )
 
     print(f"📦 Training on {X_train.shape[0]} samples with {len(class_names)} classes.")
 
-    # Train model
-    model = RandomForestClassifier(n_estimators=100, random_state=42)
+    # ========== XGBoost Model ==========
+    model = XGBClassifier(
+        objective='multi:softmax',
+        num_class=len(class_names),
+        max_depth=8,
+        learning_rate=0.1,
+        n_estimators=150,
+        use_label_encoder=False,
+        eval_metric='mlogloss'
+    )
+
     model.fit(X_train, y_train)
 
     # Internal validation

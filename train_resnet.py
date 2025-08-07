@@ -1,10 +1,11 @@
 import os
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import classification_report, accuracy_score
+import tensorflow as tf
+from tensorflow.keras import layers, models
 
 # ========== CONFIG ==========
 CHUNK_SIZE = 1024
@@ -21,7 +22,7 @@ def load_hex_fragment(path):
             return None
         return [int(hex_str[i:i+2], 16) for i in range(0, len(hex_str), 2)]
 
-# ========== Load Fragments ==========
+# ========== Load Dataset ==========
 def load_fragments(mapping_file, base_dir):
     X, y = [], []
     mapping_df = pd.read_csv(mapping_file)
@@ -35,6 +36,38 @@ def load_fragments(mapping_file, base_dir):
                 X.append(data)
                 y.append(file_type)
     return np.array(X), np.array(y)
+
+# ========== 1D ResNet Block ==========
+def resnet_block(x, filters, kernel_size=3):
+    shortcut = x
+    x = layers.Conv1D(filters, kernel_size, padding='same', activation='relu')(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.Conv1D(filters, kernel_size, padding='same')(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.Add()([shortcut, x])
+    x = layers.Activation('relu')(x)
+    return x
+
+# ========== Build ResNet Model ==========
+def build_resnet_model(input_shape, num_classes):
+    inputs = layers.Input(shape=input_shape)
+    x = layers.Conv1D(64, kernel_size=7, padding='same', activation='relu')(inputs)
+    x = layers.BatchNormalization()(x)
+
+    # Residual Blocks
+    for _ in range(3):
+        x = resnet_block(x, 64)
+
+    x = layers.GlobalAveragePooling1D()(x)
+    x = layers.Dense(128, activation='relu')(x)
+    x = layers.Dropout(0.3)(x)
+    outputs = layers.Dense(num_classes, activation='softmax')(x)
+
+    model = models.Model(inputs=inputs, outputs=outputs)
+    model.compile(optimizer='adam',
+                  loss='sparse_categorical_crossentropy',
+                  metrics=['accuracy'])
+    return model
 
 # ========== Evaluate on Unseen Data ==========
 def test_on_unseen_data(model, label_encoder, test_dir):
@@ -64,24 +97,27 @@ def test_on_unseen_data(model, label_encoder, test_dir):
         return
 
     X_test = np.array(X_test) / 255.0
+    X_test = X_test[..., np.newaxis]
     y_true_encoded = label_encoder.transform(y_true)
 
-    y_pred = model.predict(X_test)
+    y_pred_probs = model.predict(X_test)
+    y_pred_encoded = np.argmax(y_pred_probs, axis=1)
 
     print("\n📊 Classification Report on Unseen Test Data:")
-    print(classification_report(y_true_encoded, y_pred, target_names=label_encoder.classes_))
-    print(f"✅ Accuracy on Unseen Test Set: {accuracy_score(y_true_encoded, y_pred):.4f}")
+    print(classification_report(y_true_encoded, y_pred_encoded, target_names=label_encoder.classes_))
+    print(f"✅ Accuracy on Unseen Test Set: {accuracy_score(y_true_encoded, y_pred_encoded):.4f}")
 
 # ========== Main ==========
 def main():
     # Load training data
     X, y = load_fragments(TRAIN_MAPPING_FILE, TRAIN_DIR)
-    X = X / 255.0  # Normalize
+    X = X / 255.0
+    X = X[..., np.newaxis]
+
     label_enc = LabelEncoder()
     y_encoded = label_enc.fit_transform(y)
     class_names = label_enc.classes_
 
-    # Train-test split
     X_train, X_test, y_train, y_test = train_test_split(
         X, y_encoded, test_size=0.2, stratify=y_encoded, random_state=42
     )
@@ -89,14 +125,15 @@ def main():
     print(f"📦 Training on {X_train.shape[0]} samples with {len(class_names)} classes.")
 
     # Train model
-    model = RandomForestClassifier(n_estimators=100, random_state=42)
-    model.fit(X_train, y_train)
+    model = build_resnet_model(input_shape=(CHUNK_SIZE, 1), num_classes=len(class_names))
+    model.fit(X_train, y_train, epochs=20, batch_size=64, validation_split=0.1, verbose=1)
 
     # Internal validation
     y_pred = model.predict(X_test)
+    y_pred_labels = np.argmax(y_pred, axis=1)
 
     print("\n📊 Classification Report (Internal Validation):")
-    print(classification_report(y_test, y_pred, target_names=class_names))
+    print(classification_report(y_test, y_pred_labels, target_names=class_names))
 
     # Evaluate on unseen dataset
     test_on_unseen_data(model, label_enc, TEST_DIR)
@@ -112,8 +149,9 @@ def main():
             custom_data = load_hex_fragment(custom_hex_path)
             if custom_data and len(custom_data) == CHUNK_SIZE:
                 custom_arr = np.array(custom_data) / 255.0
-                custom_arr = custom_arr.reshape(1, -1)
-                pred_label = model.predict(custom_arr)[0]
+                custom_arr = custom_arr.reshape(1, CHUNK_SIZE, 1)
+                pred = model.predict(custom_arr)
+                pred_label = np.argmax(pred, axis=1)[0]
                 print(f"✅ Predicted file type: {class_names[pred_label]}")
             else:
                 print(f"⚠️ Invalid hex data in '{custom_hex_path}'. Must be exactly {CHUNK_SIZE*2} hex characters.")

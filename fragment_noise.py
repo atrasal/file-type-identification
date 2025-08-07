@@ -3,14 +3,16 @@ import random
 import csv
 
 # ====== CONFIGURATION ======
-INPUT_DIR = "images_dataset"
-OUTPUT_DIR = "fragments_dataset"
+INPUT_DIR = "test_images_dataset"
+OUTPUT_DIR = "test_fragments_dataset"
 CHUNK_SIZE = 1024
 REMOVE_HEADER = 64
 REMOVE_FOOTER = 64
-NOISE_LEVEL = 0.6
-NOISE_MODE = "xor"  # Options: xor, delete, shift
+NOISE_LEVEL = 0.2
+NOISE_MODE = "shift"  # Options: xor, delete, shift
 RANDOM_SEED = 42
+total_jpg=0
+total_png=0
 
 random.seed(RANDOM_SEED)
 
@@ -83,6 +85,15 @@ def process_dataset():
                 fragment_counter += 1
 
             print(f"{filename}: {len(fragments)} fragments")
+            if filetype == 'jpg':
+                    global total_jpg
+                    total_jpg +=len(fragments) 
+            elif filetype == 'png':
+                    global total_png
+                    total_png += len(fragments)
+
+    print(f"Total JPG fragments: {total_jpg}")
+    print(f"Total PNG fragments: {total_png}")
 
     with open(mapping_path, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
