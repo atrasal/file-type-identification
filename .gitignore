@@ -25,3 +25,8 @@ BMP/fragments_headerless_footerless
 BMP/bike/
 BMP/bmp_fragments/
 BMP/bmp_headerless/
+
+CNN/Testing_dataset
+CNN/Training_dataset
+CNN/Testing_fragments
+CNN/Training_fragments
