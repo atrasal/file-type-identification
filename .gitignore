@@ -30,3 +30,8 @@ CNN/Testing_dataset
 CNN/Training_dataset
 CNN/Testing_fragments
 CNN/Training_fragments
+
+Random_Forest/Testing_dataset
+Random_Forest/Training_dataset
+Random_Forest/Testing_fragments
+Random_Forest/Training_fragments
