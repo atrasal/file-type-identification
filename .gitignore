@@ -1,37 +1,38 @@
-.venv
+# Virtual environment
+venv/
+.venv/
+.venv311/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Data files (too large for git)
+*.bin
+*.hex
+*.npy
+*.npz
 *.png
 *.jpg
-*.npy
-*.hex
-*.bin
-__pycache__
-.venv311
 
+# Fragment datasets
+datasets/fragments/
+datasets/train/
+datasets/val/
+datasets/test/
 
-# Ignore specific dataset file
-BMP/bmp_dataset_split.npz
+# Prediction input/output
+predict_input/*.bin
+predictions_*.csv
 
-# Ignore all .npz files inside forensics/BMP
-BMP/*.npz
-BMP/test_bmp_images
-BMP/train_bmp_images
-BMP/fragments_with_header_footer
-BMP/fragments_headerless_footerless
+# Saved models (large binary files)
+saved_models/
 
-#Ignore .npz files anywhere in the project
-*.npz
-
-# Ignore specific folders (if they are directories)
-BMP/bike/
-BMP/bmp_fragments/
-BMP/bmp_headerless/
-
-CNN/Testing_dataset
-CNN/Training_dataset
-CNN/Testing_fragments
-CNN/Training_fragments
-
-Random_Forest/Testing_dataset
-Random_Forest/Training_dataset
-Random_Forest/Testing_fragments
-Random_Forest/Training_fragments
+# Results (regenerated on training)
+results/
