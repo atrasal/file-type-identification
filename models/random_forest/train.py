@@ -17,12 +17,14 @@ from sklearn.metrics import classification_report, accuracy_score, precision_sco
 
 # Add project root to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-from utils.data_loader import prepare_dataset
+from utils.data_loader import prepare_dataset, load_fragments
 
 # ========== CONFIG ==========
 TRAIN_DIR = "datasets/train"
+VAL_DIR = "datasets/val"
 TEST_DIR = "datasets/test"
 TRAIN_MAPPING = os.path.join(TRAIN_DIR, "fragment_mapping.csv")
+VAL_MAPPING = os.path.join(VAL_DIR, "fragment_mapping.csv")
 TEST_MAPPING = os.path.join(TEST_DIR, "fragment_mapping.csv")
 
 MODEL_SAVE_PATH = "saved_models/random_forest/rf_model.joblib"
@@ -35,19 +37,17 @@ def main():
         TRAIN_MAPPING, TRAIN_DIR
     )
 
-    print("📦 Loading test data...")
-    X_test, y_test, _, _ = prepare_dataset(TEST_MAPPING, TEST_DIR)
-    y_test = label_enc.transform(
-        [class_names[i] if i < len(class_names) else '' for i in y_test]
-    ) if len(set(y_test)) > 0 else y_test
+    print("📦 Loading validation data...")
+    X_val_raw, y_val_raw = load_fragments(VAL_MAPPING, VAL_DIR)
+    X_val = X_val_raw / 255.0
+    y_val = label_enc.transform(y_val_raw)
 
-    # Re-encode test labels with same encoder
-    from utils.data_loader import load_fragments
+    print("📦 Loading test data...")
     X_test_raw, y_test_raw = load_fragments(TEST_MAPPING, TEST_DIR)
     X_test = X_test_raw / 255.0
     y_test = label_enc.transform(y_test_raw)
 
-    print(f"📊 Train: {X_train.shape[0]}, Test: {X_test.shape[0]}, Classes: {list(class_names)}")
+    print(f"📊 Train: {X_train.shape[0]}, Val: {X_val.shape[0]}, Test: {X_test.shape[0]}, Classes: {list(class_names)}")
 
     # Train model
     print(f"\n🚀 Training Random Forest on {X_train.shape[0]} samples...")
@@ -56,7 +56,14 @@ def main():
     model.fit(X_train, y_train)
     train_time = time.time() - start_time
 
-    # Evaluate
+    # Evaluate on validation set
+    y_val_pred = model.predict(X_val)
+    val_accuracy = accuracy_score(y_val, y_val_pred)
+    val_precision = precision_score(y_val, y_val_pred, average='macro', zero_division=0)
+    val_recall = recall_score(y_val, y_val_pred, average='macro', zero_division=0)
+    val_f1 = f1_score(y_val, y_val_pred, average='macro', zero_division=0)
+
+    # Evaluate on test set
     inference_start = time.time()
     y_pred = model.predict(X_test)
     inference_time = time.time() - inference_start
@@ -66,9 +73,10 @@ def main():
     recall = recall_score(y_test, y_pred, average='macro', zero_division=0)
     f1 = f1_score(y_test, y_pred, average='macro', zero_division=0)
 
-    print("\n📊 Classification Report:")
+    print("\n📊 Test Classification Report:")
     print(classification_report(y_test, y_pred, target_names=class_names))
-    print(f"✅ Accuracy: {accuracy:.4f}")
+    print(f"✅ Val  Accuracy: {val_accuracy:.4f}, F1: {val_f1:.4f}")
+    print(f"✅ Test Accuracy: {accuracy:.4f}, F1: {f1:.4f}")
     print(f"⏱️  Training time: {train_time:.2f}s")
     print(f"⏱️  Inference time: {inference_time:.4f}s")
 
@@ -85,7 +93,12 @@ def main():
         "precision": float(precision),
         "recall": float(recall),
         "f1_score": float(f1),
+        "val_accuracy": float(val_accuracy),
+        "val_precision": float(val_precision),
+        "val_recall": float(val_recall),
+        "val_f1_score": float(val_f1),
         "train_samples": int(X_train.shape[0]),
+        "val_samples": int(X_val.shape[0]),
         "test_samples": int(X_test.shape[0]),
         "train_time_seconds": float(train_time),
         "inference_time_seconds": float(inference_time),

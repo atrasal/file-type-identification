@@ -23,8 +23,10 @@ from utils.data_loader import prepare_dataset, load_fragments
 
 # ========== CONFIG ==========
 TRAIN_DIR = "datasets/train"
+VAL_DIR = "datasets/val"
 TEST_DIR = "datasets/test"
 TRAIN_MAPPING = os.path.join(TRAIN_DIR, "fragment_mapping.csv")
+VAL_MAPPING = os.path.join(VAL_DIR, "fragment_mapping.csv")
 TEST_MAPPING = os.path.join(TEST_DIR, "fragment_mapping.csv")
 
 MODEL_SAVE_PATH = "saved_models/resnet/resnet_model.pth"
@@ -32,6 +34,7 @@ RESULTS_PATH = "results/resnet_results.json"
 EPOCHS = 15
 BATCH_SIZE = 64
 LR = 0.001
+PATIENCE = 3  # Early stopping patience
 
 
 # ========== 1D Residual Block ==========
@@ -89,6 +92,26 @@ class ResNet1D(nn.Module):
         return self.fc(x)
 
 
+def evaluate(model, loader, criterion, device):
+    """Evaluate model on a data loader. Returns loss, accuracy, predictions."""
+    model.eval()
+    total_loss = 0.0
+    all_preds = []
+    all_labels = []
+    with torch.no_grad():
+        for batch_X, batch_y in loader:
+            batch_X, batch_y = batch_X.to(device), batch_y.to(device)
+            outputs = model(batch_X)
+            loss = criterion(outputs, batch_y)
+            total_loss += loss.item()
+            _, preds = torch.max(outputs, 1)
+            all_preds.extend(preds.cpu().numpy())
+            all_labels.extend(batch_y.cpu().numpy())
+    avg_loss = total_loss / len(loader)
+    acc = accuracy_score(all_labels, all_preds)
+    return avg_loss, acc, np.array(all_preds), np.array(all_labels)
+
+
 def main():
     print("📦 Loading training data...")
     X_train, y_train, label_enc, class_names = prepare_dataset(
@@ -96,20 +119,28 @@ def main():
     )
     num_classes = len(class_names)
 
+    print("📦 Loading validation data...")
+    X_val_raw, y_val_raw = load_fragments(VAL_MAPPING, VAL_DIR)
+    X_val = X_val_raw / 255.0
+    y_val = label_enc.transform(y_val_raw)
+
     print("📦 Loading test data...")
     X_test_raw, y_test_raw = load_fragments(TEST_MAPPING, TEST_DIR)
     X_test = X_test_raw / 255.0
     y_test = label_enc.transform(y_test_raw)
 
-    print(f"📊 Train: {X_train.shape[0]}, Test: {X_test.shape[0]}, Classes: {list(class_names)}")
+    print(f"📊 Train: {X_train.shape[0]}, Val: {X_val.shape[0]}, Test: {X_test.shape[0]}, Classes: {list(class_names)}")
 
     # Convert to PyTorch tensors
     X_train_t = torch.FloatTensor(X_train).unsqueeze(1)
+    X_val_t = torch.FloatTensor(X_val).unsqueeze(1)
     X_test_t = torch.FloatTensor(X_test).unsqueeze(1)
     y_train_t = torch.LongTensor(y_train)
+    y_val_t = torch.LongTensor(y_val)
     y_test_t = torch.LongTensor(y_test)
 
     train_loader = DataLoader(TensorDataset(X_train_t, y_train_t), batch_size=BATCH_SIZE, shuffle=True)
+    val_loader = DataLoader(TensorDataset(X_val_t, y_val_t), batch_size=BATCH_SIZE)
     test_loader = DataLoader(TensorDataset(X_test_t, y_test_t), batch_size=BATCH_SIZE)
 
     # Setup model
@@ -120,9 +151,13 @@ def main():
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=LR)
 
-    # Training
-    print(f"\n🚀 Training ResNet on {X_train.shape[0]} samples...")
+    # Training with validation monitoring + early stopping
+    print(f"\n🚀 Training ResNet on {X_train.shape[0]} samples (patience={PATIENCE})...")
     start_time = time.time()
+
+    best_val_loss = float('inf')
+    patience_counter = 0
+    best_model_state = None
 
     for epoch in range(EPOCHS):
         model.train()
@@ -135,31 +170,49 @@ def main():
             loss.backward()
             optimizer.step()
             running_loss += loss.item()
-        print(f"  Epoch {epoch+1}/{EPOCHS}, Loss: {running_loss/len(train_loader):.4f}")
+
+        train_loss = running_loss / len(train_loader)
+        val_loss, val_acc, _, _ = evaluate(model, val_loader, criterion, device)
+
+        print(f"  Epoch {epoch+1}/{EPOCHS}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f}")
+
+        # Early stopping check
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            patience_counter = 0
+            best_model_state = model.state_dict().copy()
+        else:
+            patience_counter += 1
+            if patience_counter >= PATIENCE:
+                print(f"  ⏹️  Early stopping at epoch {epoch+1} (no improvement for {PATIENCE} epochs)")
+                break
 
     train_time = time.time() - start_time
 
-    # Evaluation
-    model.eval()
-    all_preds = []
+    # Restore best model
+    if best_model_state is not None:
+        model.load_state_dict(best_model_state)
+        print(f"  ✅ Restored best model (val_loss={best_val_loss:.4f})")
+
+    # Evaluate on validation set
+    val_loss, val_acc, val_preds, _ = evaluate(model, val_loader, criterion, device)
+    val_precision = precision_score(y_val, val_preds, average='macro', zero_division=0)
+    val_recall = recall_score(y_val, val_preds, average='macro', zero_division=0)
+    val_f1 = f1_score(y_val, val_preds, average='macro', zero_division=0)
+
+    # Evaluate on test set
     inference_start = time.time()
-    with torch.no_grad():
-        for batch_X, _ in test_loader:
-            batch_X = batch_X.to(device)
-            outputs = model(batch_X)
-            _, preds = torch.max(outputs, 1)
-            all_preds.extend(preds.cpu().numpy())
+    _, test_acc, test_preds, _ = evaluate(model, test_loader, criterion, device)
     inference_time = time.time() - inference_start
 
-    y_pred = np.array(all_preds)
-    accuracy = accuracy_score(y_test, y_pred)
-    precision = precision_score(y_test, y_pred, average='macro', zero_division=0)
-    recall = recall_score(y_test, y_pred, average='macro', zero_division=0)
-    f1 = f1_score(y_test, y_pred, average='macro', zero_division=0)
+    test_precision = precision_score(y_test, test_preds, average='macro', zero_division=0)
+    test_recall = recall_score(y_test, test_preds, average='macro', zero_division=0)
+    test_f1 = f1_score(y_test, test_preds, average='macro', zero_division=0)
 
-    print("\n📊 Classification Report:")
-    print(classification_report(y_test, y_pred, target_names=class_names))
-    print(f"✅ Accuracy: {accuracy:.4f}")
+    print("\n📊 Test Classification Report:")
+    print(classification_report(y_test, test_preds, target_names=class_names))
+    print(f"✅ Val  Accuracy: {val_acc:.4f}, F1: {val_f1:.4f}")
+    print(f"✅ Test Accuracy: {test_acc:.4f}, F1: {test_f1:.4f}")
     print(f"⏱️  Training time: {train_time:.2f}s")
     print(f"⏱️  Inference time: {inference_time:.4f}s")
 
@@ -172,15 +225,22 @@ def main():
     os.makedirs(os.path.dirname(RESULTS_PATH), exist_ok=True)
     results = {
         "model": "ResNet",
-        "accuracy": float(accuracy),
-        "precision": float(precision),
-        "recall": float(recall),
-        "f1_score": float(f1),
+        "accuracy": float(test_acc),
+        "precision": float(test_precision),
+        "recall": float(test_recall),
+        "f1_score": float(test_f1),
+        "val_accuracy": float(val_acc),
+        "val_precision": float(val_precision),
+        "val_recall": float(val_recall),
+        "val_f1_score": float(val_f1),
         "train_samples": int(X_train.shape[0]),
+        "val_samples": int(X_val.shape[0]),
         "test_samples": int(X_test.shape[0]),
         "train_time_seconds": float(train_time),
         "inference_time_seconds": float(inference_time),
         "classes": list(class_names),
+        "early_stopped": patience_counter >= PATIENCE,
+        "best_val_loss": float(best_val_loss),
     }
     with open(RESULTS_PATH, 'w') as f:
         json.dump(results, f, indent=2)
