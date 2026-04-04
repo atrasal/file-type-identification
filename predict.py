@@ -38,6 +38,11 @@ MODELS = {
         'path': 'saved_models/xgboost/xgb_model.joblib',
         'type': 'sklearn',
     },
+    'svm': {
+        'name': 'SVM',
+        'path': 'saved_models/svm/svm_model.joblib',
+        'type': 'sklearn',
+    },
     'cnn': {
         'name': 'CNN',
         'path': 'saved_models/cnn/cnn_model.pth',
@@ -46,6 +51,21 @@ MODELS = {
     'resnet': {
         'name': 'ResNet',
         'path': 'saved_models/resnet/resnet_model.pth',
+        'type': 'torch',
+    },
+    'mlp': {
+        'name': 'MLP',
+        'path': 'saved_models/mlp/mlp_model.pth',
+        'type': 'torch',
+    },
+    'lenet': {
+        'name': 'LeNet',
+        'path': 'saved_models/lenet/lenet_model.pth',
+        'type': 'torch',
+    },
+    'lstm': {
+        'name': 'LSTM',
+        'path': 'saved_models/lstm/lstm_model.pth',
         'type': 'torch',
     },
 }
@@ -65,7 +85,7 @@ def load_fragment(path):
         else:
             data = data[:CHUNK_SIZE]
 
-    arr = np.array(list(data), dtype=np.float64) / 255.0
+    arr = np.array(list(data), dtype=np.float32) / 255.0
     return arr
 
 
@@ -75,8 +95,15 @@ def predict_sklearn(model_path, fragments):
     saved = joblib.load(model_path)
     model = saved['model']
     label_enc = saved['label_encoder']
+    use_features = saved.get('use_engineered_features', False)
 
     X = np.array(fragments)
+
+    # Apply feature engineering if model was trained with it
+    if use_features:
+        from utils.feature_engineering import extract_features_batch
+        X = extract_features_batch(X)
+
     pred_indices = model.predict(X)
     pred_labels = label_enc.inverse_transform(pred_indices)
 
@@ -106,15 +133,34 @@ def predict_torch(model_path, fragments, model_type):
 
     with open(results_path) as f:
         res = json.load(f)
-    class_names = res['classes']
+    # Support both old format (classes at root) and new format (under dataset_info)
+    if 'dataset_info' in res and 'classes' in res['dataset_info']:
+        class_names = res['dataset_info']['classes']
+    elif 'classes' in res:
+        class_names = res['classes']
+    else:
+        print(f"  ❌ No class names found in {results_path}")
+        return [(None, None)] * len(fragments)
     num_classes = len(class_names)
 
     if model_type == 'cnn':
         from models.cnn.train import FragmentCNN
         model = FragmentCNN(CHUNK_SIZE, num_classes)
-    else:
+    elif model_type == 'resnet':
         from models.resnet.train import ResNet1D
         model = ResNet1D(num_classes)
+    elif model_type == 'mlp':
+        from models.mlp.train import FragmentMLP
+        model = FragmentMLP(CHUNK_SIZE, num_classes)
+    elif model_type == 'lenet':
+        from models.lenet.train import LeNet1D
+        model = LeNet1D(CHUNK_SIZE, num_classes)
+    elif model_type == 'lstm':
+        from models.lstm.train import FragmentLSTM
+        model = FragmentLSTM(CHUNK_SIZE, num_classes)
+    else:
+        print(f"  ❌ Unknown torch model type: {model_type}")
+        return [(None, None)] * len(fragments)
 
     model.load_state_dict(torch.load(model_path, map_location='cpu', weights_only=True))
     model.eval()
@@ -187,7 +233,7 @@ def main():
     parser.add_argument('input', nargs='?', default=DEFAULT_INPUT_FOLDER,
                         help=f'Path to a .bin file or folder of .bin files (default: {DEFAULT_INPUT_FOLDER}/)')
     parser.add_argument('--model', default='rf',
-                        choices=['rf', 'xgboost', 'cnn', 'resnet', 'all'],
+                        choices=['rf', 'xgboost', 'svm', 'cnn', 'resnet', 'mlp', 'lenet', 'lstm', 'all'],
                         help='Model to use for prediction (default: rf)')
     parser.add_argument('--top', type=int, default=3,
                         help='Number of top predictions to show (default: 3)')

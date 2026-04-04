@@ -1,9 +1,9 @@
 """
-XGBoost training script for file-type fragment classification.
+SVM training script for file-type fragment classification.
 
 Usage:
-  python -m models.xgboost.train
-  python models/xgboost/train.py
+  python -m models.svm.train
+  python models/svm/train.py
 """
 
 import os
@@ -12,7 +12,7 @@ import time
 import json
 import numpy as np
 import joblib
-from xgboost import XGBClassifier
+from sklearn.svm import LinearSVC
 from sklearn.metrics import classification_report, accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 from sklearn.preprocessing import LabelEncoder
 from collections import Counter
@@ -30,8 +30,8 @@ TRAIN_MAPPING = os.path.join(TRAIN_DIR, "fragment_mapping.csv")
 VAL_MAPPING = os.path.join(VAL_DIR, "fragment_mapping.csv")
 TEST_MAPPING = os.path.join(TEST_DIR, "fragment_mapping.csv")
 
-MODEL_SAVE_PATH = "saved_models/xgboost/xgb_model.joblib"
-RESULTS_PATH = "results/xgboost_results.json"
+MODEL_SAVE_PATH = "saved_models/svm/svm_model.joblib"
+RESULTS_PATH = "results/svm_results.json"
 BATCH_SIZE = 50000  # Fragments per batch during loading
 
 
@@ -54,7 +54,7 @@ def load_and_extract_features(mapping_file, base_dir, label_enc=None):
 
 
 def main():
-    # Fit label encoder on all training labels (just reads CSV column, no fragment data)
+    # Fit label encoder on all training labels
     print("📦 Fitting label encoder...")
     all_train_labels = get_all_labels(TRAIN_MAPPING)
     label_enc = LabelEncoder()
@@ -78,30 +78,22 @@ def main():
     n_test = X_test_feat.shape[0]
     print(f"\n📊 Train: {n_train}, Val: {n_val}, Test: {n_test}, Features: {X_train_feat.shape[1]}, Classes: {list(class_names)}")
 
-    # Compute class-balanced sample weights
-    class_counts = np.bincount(y_train)
-    class_weights = len(y_train) / (len(class_counts) * class_counts)
-    sample_weights = class_weights[y_train]
+    # Subsample training data for SVM — LinearSVC scales poorly beyond ~200K samples
+    MAX_TRAIN = 200000
+    if n_train > MAX_TRAIN:
+        print(f"\n✂️  Subsampling training data: {n_train} → {MAX_TRAIN} (stratified)")
+        from sklearn.model_selection import StratifiedShuffleSplit
+        sss = StratifiedShuffleSplit(n_splits=1, train_size=MAX_TRAIN, random_state=42)
+        idx, _ = next(sss.split(X_train_feat, y_train))
+        X_train_feat = X_train_feat[idx]
+        y_train = y_train[idx]
+        n_train = MAX_TRAIN
 
-    # Train model with early stopping on validation set
-    print(f"\n🚀 Training XGBoost on {n_train} samples ({X_train_feat.shape[1]} features)...")
+    # Train LinearSVC (no calibration wrapper — avoids 4x training overhead)
+    print(f"\n🚀 Training SVM (LinearSVC) on {n_train} samples ({X_train_feat.shape[1]} features)...")
     start_time = time.time()
-    model = XGBClassifier(
-        n_estimators=100,
-        max_depth=6,
-        learning_rate=0.1,
-        random_state=42,
-        n_jobs=-1,
-        use_label_encoder=False,
-        eval_metric='mlogloss',
-        early_stopping_rounds=10,
-    )
-    model.fit(
-        X_train_feat, y_train,
-        sample_weight=sample_weights,
-        eval_set=[(X_val_feat, y_val)],
-        verbose=True,
-    )
+    model = LinearSVC(max_iter=5000, random_state=42, dual='auto')
+    model.fit(X_train_feat, y_train)
     train_time = time.time() - start_time
 
     # Evaluate on validation set
@@ -158,7 +150,7 @@ def main():
     # Save results
     os.makedirs(os.path.dirname(RESULTS_PATH), exist_ok=True)
     results = {
-        "model": "XGBoost",
+        "model": "SVM",
         "accuracy": float(accuracy),
         "precision": float(precision),
         "recall": float(recall),
@@ -168,10 +160,9 @@ def main():
         "val_recall": float(val_recall),
         "val_f1_score": float(val_f1),
         "parameters": {
-            "n_estimators": model.n_estimators,
-            "max_depth": model.max_depth,
-            "learning_rate": model.learning_rate,
             "model_size_mb": round(model_size_mb, 2),
+            "max_iter": 2000,
+            "kernel": "linear",
         },
         "per_class_metrics": per_class_metrics,
         "confusion_matrix": cm,
@@ -186,7 +177,6 @@ def main():
         },
         "train_time_seconds": float(train_time),
         "inference_time_seconds": float(inference_time),
-        "best_iteration": int(model.best_iteration) if hasattr(model, 'best_iteration') else None,
     }
     with open(RESULTS_PATH, 'w') as f:
         json.dump(results, f, indent=2)
@@ -195,4 +185,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

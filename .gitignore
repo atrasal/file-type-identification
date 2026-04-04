@@ -34,5 +34,6 @@ predictions_*.csv
 # Saved models (large binary files)
 saved_models/
 
-# Results (regenerated on training)
-results/
+# Generated graphs (regenerated via generate_graphs.py)
+results/*.png
+results/*.pdf

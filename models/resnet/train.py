@@ -15,11 +15,12 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
-from sklearn.metrics import classification_report, accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import classification_report, accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+from collections import Counter
 
 # Add project root to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-from utils.data_loader import prepare_dataset, load_fragments
+from utils.data_loader import get_all_labels, LazyFragmentDataset, CHUNK_SIZE
 
 # ========== CONFIG ==========
 TRAIN_DIR = "datasets/train"
@@ -31,10 +32,11 @@ TEST_MAPPING = os.path.join(TEST_DIR, "fragment_mapping.csv")
 
 MODEL_SAVE_PATH = "saved_models/resnet/resnet_model.pth"
 RESULTS_PATH = "results/resnet_results.json"
-EPOCHS = 15
+EPOCHS = 30
 BATCH_SIZE = 64
 LR = 0.001
-PATIENCE = 3  # Early stopping patience
+PATIENCE = 5  # Early stopping patience
+NUM_WORKERS = 0  # Disk I/O workers for DataLoader
 
 
 # ========== 1D Residual Block ==========
@@ -113,47 +115,54 @@ def evaluate(model, loader, criterion, device):
 
 
 def main():
-    print("📦 Loading training data...")
-    X_train, y_train, label_enc, class_names = prepare_dataset(
-        TRAIN_MAPPING, TRAIN_DIR
-    )
+    # Fit label encoder on all training labels (just reads CSV, no fragment data)
+    print("📦 Fitting label encoder...")
+    from sklearn.preprocessing import LabelEncoder
+    all_train_labels = get_all_labels(TRAIN_MAPPING)
+    label_enc = LabelEncoder()
+    label_enc.fit(all_train_labels)
+    class_names = label_enc.classes_
     num_classes = len(class_names)
 
-    print("📦 Loading validation data...")
-    X_val_raw, y_val_raw = load_fragments(VAL_MAPPING, VAL_DIR)
-    X_val = X_val_raw / 255.0
-    y_val = label_enc.transform(y_val_raw)
+    # Create lazy-loading datasets (only indexes file paths, doesn't load data)
+    print("📦 Indexing datasets...")
+    train_dataset = LazyFragmentDataset(TRAIN_MAPPING, TRAIN_DIR, label_enc)
+    val_dataset = LazyFragmentDataset(VAL_MAPPING, VAL_DIR, label_enc)
+    test_dataset = LazyFragmentDataset(TEST_MAPPING, TEST_DIR, label_enc)
 
-    print("📦 Loading test data...")
-    X_test_raw, y_test_raw = load_fragments(TEST_MAPPING, TEST_DIR)
-    X_test = X_test_raw / 255.0
-    y_test = label_enc.transform(y_test_raw)
+    n_train = len(train_dataset)
+    n_val = len(val_dataset)
+    n_test = len(test_dataset)
+    print(f"📊 Train: {n_train}, Val: {n_val}, Test: {n_test}, Classes: {list(class_names)}")
 
-    print(f"📊 Train: {X_train.shape[0]}, Val: {X_val.shape[0]}, Test: {X_test.shape[0]}, Classes: {list(class_names)}")
-
-    # Convert to PyTorch tensors
-    X_train_t = torch.FloatTensor(X_train).unsqueeze(1)
-    X_val_t = torch.FloatTensor(X_val).unsqueeze(1)
-    X_test_t = torch.FloatTensor(X_test).unsqueeze(1)
-    y_train_t = torch.LongTensor(y_train)
-    y_val_t = torch.LongTensor(y_val)
-    y_test_t = torch.LongTensor(y_test)
-
-    train_loader = DataLoader(TensorDataset(X_train_t, y_train_t), batch_size=BATCH_SIZE, shuffle=True)
-    val_loader = DataLoader(TensorDataset(X_val_t, y_val_t), batch_size=BATCH_SIZE)
-    test_loader = DataLoader(TensorDataset(X_test_t, y_test_t), batch_size=BATCH_SIZE)
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=NUM_WORKERS)
+    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS)
+    test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS)
 
     # Setup model
     device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
     print(f"🖥️  Using device: {device}")
 
+    # Compute class weights from training label frequencies
+    label_counts = np.bincount(label_enc.transform(all_train_labels))
+    class_weights = len(all_train_labels) / (num_classes * label_counts)
+    class_weights_tensor = torch.FloatTensor(class_weights).to(device)
+
     model = ResNet1D(num_classes).to(device)
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss(weight=class_weights_tensor)
     optimizer = optim.Adam(model.parameters(), lr=LR)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=2, factor=0.5)
+
+    # Model parameters
+    total_params = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    model_size_mb = sum(p.numel() * p.element_size() for p in model.parameters()) / (1024 * 1024)
+    print(f"📐 Parameters: {total_params:,} total, {trainable_params:,} trainable, {model_size_mb:.2f} MB")
 
     # Training with validation monitoring + early stopping
-    print(f"\n🚀 Training ResNet on {X_train.shape[0]} samples (patience={PATIENCE})...")
+    print(f"\n🚀 Training ResNet on {n_train} samples (patience={PATIENCE})...")
     start_time = time.time()
+    history = {"train_loss": [], "val_loss": [], "val_accuracy": []}
 
     best_val_loss = float('inf')
     patience_counter = 0
@@ -173,8 +182,13 @@ def main():
 
         train_loss = running_loss / len(train_loader)
         val_loss, val_acc, _, _ = evaluate(model, val_loader, criterion, device)
+        history["train_loss"].append(float(train_loss))
+        history["val_loss"].append(float(val_loss))
+        history["val_accuracy"].append(float(val_acc))
 
-        print(f"  Epoch {epoch+1}/{EPOCHS}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f}")
+        current_lr = optimizer.param_groups[0]['lr']
+        print(f"  Epoch {epoch+1}/{EPOCHS}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f}, LR: {current_lr:.6f}")
+        scheduler.step(val_loss)
 
         # Early stopping check
         if val_loss < best_val_loss:
@@ -195,22 +209,22 @@ def main():
         print(f"  ✅ Restored best model (val_loss={best_val_loss:.4f})")
 
     # Evaluate on validation set
-    val_loss, val_acc, val_preds, _ = evaluate(model, val_loader, criterion, device)
-    val_precision = precision_score(y_val, val_preds, average='macro', zero_division=0)
-    val_recall = recall_score(y_val, val_preds, average='macro', zero_division=0)
-    val_f1 = f1_score(y_val, val_preds, average='macro', zero_division=0)
+    val_loss, val_acc, val_preds, val_labels = evaluate(model, val_loader, criterion, device)
+    val_precision = precision_score(val_labels, val_preds, average='macro', zero_division=0)
+    val_recall = recall_score(val_labels, val_preds, average='macro', zero_division=0)
+    val_f1 = f1_score(val_labels, val_preds, average='macro', zero_division=0)
 
     # Evaluate on test set
     inference_start = time.time()
-    _, test_acc, test_preds, _ = evaluate(model, test_loader, criterion, device)
+    _, test_acc, test_preds, test_labels = evaluate(model, test_loader, criterion, device)
     inference_time = time.time() - inference_start
 
-    test_precision = precision_score(y_test, test_preds, average='macro', zero_division=0)
-    test_recall = recall_score(y_test, test_preds, average='macro', zero_division=0)
-    test_f1 = f1_score(y_test, test_preds, average='macro', zero_division=0)
+    test_precision = precision_score(test_labels, test_preds, average='macro', zero_division=0)
+    test_recall = recall_score(test_labels, test_preds, average='macro', zero_division=0)
+    test_f1 = f1_score(test_labels, test_preds, average='macro', zero_division=0)
 
     print("\n📊 Test Classification Report:")
-    print(classification_report(y_test, test_preds, target_names=class_names))
+    print(classification_report(test_labels, test_preds, target_names=class_names))
     print(f"✅ Val  Accuracy: {val_acc:.4f}, F1: {val_f1:.4f}")
     print(f"✅ Test Accuracy: {test_acc:.4f}, F1: {test_f1:.4f}")
     print(f"⏱️  Training time: {train_time:.2f}s")
@@ -220,6 +234,23 @@ def main():
     os.makedirs(os.path.dirname(MODEL_SAVE_PATH), exist_ok=True)
     torch.save(model.state_dict(), MODEL_SAVE_PATH)
     print(f"💾 Model saved to: {MODEL_SAVE_PATH}")
+
+    # Per-class metrics
+    report = classification_report(test_labels, test_preds, target_names=class_names, output_dict=True)
+    per_class_metrics = {}
+    for cls in class_names:
+        per_class_metrics[cls] = {
+            "precision": float(report[cls]["precision"]),
+            "recall": float(report[cls]["recall"]),
+            "f1": float(report[cls]["f1-score"]),
+            "support": int(report[cls]["support"]),
+        }
+
+    # Confusion matrix
+    cm = confusion_matrix(test_labels, test_preds).tolist()
+
+    # Dataset distribution
+    train_label_counts = dict(Counter(all_train_labels))
 
     # Save results
     os.makedirs(os.path.dirname(RESULTS_PATH), exist_ok=True)
@@ -233,12 +264,25 @@ def main():
         "val_precision": float(val_precision),
         "val_recall": float(val_recall),
         "val_f1_score": float(val_f1),
-        "train_samples": int(X_train.shape[0]),
-        "val_samples": int(X_val.shape[0]),
-        "test_samples": int(X_test.shape[0]),
+        "parameters": {
+            "total_params": total_params,
+            "trainable_params": trainable_params,
+            "model_size_mb": round(model_size_mb, 2),
+        },
+        "training_history": history,
+        "per_class_metrics": per_class_metrics,
+        "confusion_matrix": cm,
+        "dataset_info": {
+            "train_samples": n_train,
+            "val_samples": n_val,
+            "test_samples": n_test,
+            "total_samples": n_train + n_val + n_test,
+            "num_classes": num_classes,
+            "classes": list(class_names),
+            "samples_per_class": {k: int(v) for k, v in train_label_counts.items()},
+        },
         "train_time_seconds": float(train_time),
         "inference_time_seconds": float(inference_time),
-        "classes": list(class_names),
         "early_stopped": patience_counter >= PATIENCE,
         "best_val_loss": float(best_val_loss),
     }
@@ -249,3 +293,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

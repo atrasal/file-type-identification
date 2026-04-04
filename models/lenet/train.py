@@ -1,9 +1,12 @@
 """
-CNN training script for file-type fragment classification.
+LeNet-1D training script for file-type fragment classification.
+
+Adapted from the classic LeNet-5 architecture for 1D byte sequences.
+A lightweight CNN with 2 conv layers — serves as a simple CNN baseline.
 
 Usage:
-  python -m models.cnn.train
-  python models/cnn/train.py
+  python -m models.lenet.train
+  python models/lenet/train.py
 """
 
 import os
@@ -14,7 +17,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import DataLoader
 from sklearn.metrics import classification_report, accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 from collections import Counter
 
@@ -30,42 +33,46 @@ TRAIN_MAPPING = os.path.join(TRAIN_DIR, "fragment_mapping.csv")
 VAL_MAPPING = os.path.join(VAL_DIR, "fragment_mapping.csv")
 TEST_MAPPING = os.path.join(TEST_DIR, "fragment_mapping.csv")
 
-MODEL_SAVE_PATH = "saved_models/cnn/cnn_model.pth"
-RESULTS_PATH = "results/cnn_results.json"
+MODEL_SAVE_PATH = "saved_models/lenet/lenet_model.pth"
+RESULTS_PATH = "results/lenet_results.json"
 EPOCHS = 30
 BATCH_SIZE = 64
 LR = 0.001
-PATIENCE = 5  # Early stopping patience
-NUM_WORKERS = 0  # Disk I/O workers for DataLoader
+PATIENCE = 5
+NUM_WORKERS = 0
 
 
-# ========== CNN Model ==========
-class FragmentCNN(nn.Module):
+# ========== LeNet-1D Model ==========
+class LeNet1D(nn.Module):
+    """
+    LeNet-5 adapted for 1D signals.
+    Conv1 -> Pool -> Conv2 -> Pool -> FC1 -> FC2 -> FC3
+    """
     def __init__(self, input_size, num_classes):
-        super(FragmentCNN, self).__init__()
-        self.conv1 = nn.Conv1d(1, 64, kernel_size=5, padding=2)
-        self.pool1 = nn.MaxPool1d(2)
-        self.conv2 = nn.Conv1d(64, 128, kernel_size=3, padding=1)
-        self.pool2 = nn.MaxPool1d(2)
-        self.flatten = nn.Flatten()
-        self.fc1 = nn.Linear(128 * (input_size // 4), 128)
-        self.dropout = nn.Dropout(0.3)
-        self.fc2 = nn.Linear(128, num_classes)
+        super().__init__()
+        self.conv1 = nn.Conv1d(1, 6, kernel_size=5, padding=2)
+        self.pool = nn.AvgPool1d(kernel_size=2, stride=2)
+        self.conv2 = nn.Conv1d(6, 16, kernel_size=5, padding=2)
+
+        # After 2 pooling layers: input_size // 4
+        fc_input = 16 * (input_size // 4)
+        self.fc1 = nn.Linear(fc_input, 120)
+        self.fc2 = nn.Linear(120, 84)
+        self.fc3 = nn.Linear(84, num_classes)
 
     def forward(self, x):
         x = torch.relu(self.conv1(x))
-        x = self.pool1(x)
+        x = self.pool(x)
         x = torch.relu(self.conv2(x))
-        x = self.pool2(x)
-        x = self.flatten(x)
+        x = self.pool(x)
+        x = x.view(x.size(0), -1)
         x = torch.relu(self.fc1(x))
-        x = self.dropout(x)
-        x = self.fc2(x)
+        x = torch.relu(self.fc2(x))
+        x = self.fc3(x)
         return x
 
 
 def evaluate(model, loader, criterion, device):
-    """Evaluate model on a data loader. Returns loss, accuracy, predictions."""
     model.eval()
     total_loss = 0.0
     all_preds = []
@@ -85,7 +92,6 @@ def evaluate(model, loader, criterion, device):
 
 
 def main():
-    # Fit label encoder on all training labels (just reads CSV, no fragment data)
     print("📦 Fitting label encoder...")
     from sklearn.preprocessing import LabelEncoder
     all_train_labels = get_all_labels(TRAIN_MAPPING)
@@ -95,7 +101,6 @@ def main():
     num_classes = len(class_names)
     input_size = CHUNK_SIZE
 
-    # Create lazy-loading datasets (only indexes file paths, doesn't load data)
     print("📦 Indexing datasets...")
     train_dataset = LazyFragmentDataset(TRAIN_MAPPING, TRAIN_DIR, label_enc)
     val_dataset = LazyFragmentDataset(VAL_MAPPING, VAL_DIR, label_enc)
@@ -110,7 +115,6 @@ def main():
     val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS)
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS)
 
-    # Setup model
     device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
     print(f"🖥️  Using device: {device}")
 
@@ -119,22 +123,19 @@ def main():
     class_weights = len(all_train_labels) / (num_classes * label_counts)
     class_weights_tensor = torch.FloatTensor(class_weights).to(device)
 
-    model = FragmentCNN(input_size, num_classes).to(device)
+    model = LeNet1D(input_size, num_classes).to(device)
     criterion = nn.CrossEntropyLoss(weight=class_weights_tensor)
     optimizer = optim.Adam(model.parameters(), lr=LR)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=2, factor=0.5)
 
-    # Model parameters
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     model_size_mb = sum(p.numel() * p.element_size() for p in model.parameters()) / (1024 * 1024)
     print(f"📐 Parameters: {total_params:,} total, {trainable_params:,} trainable, {model_size_mb:.2f} MB")
 
-    # Training with validation monitoring + early stopping
-    print(f"\n🚀 Training CNN on {n_train} samples (patience={PATIENCE})...")
+    print(f"\n🚀 Training LeNet-1D on {n_train} samples (patience={PATIENCE})...")
     start_time = time.time()
     history = {"train_loss": [], "val_loss": [], "val_accuracy": []}
-
     best_val_loss = float('inf')
     patience_counter = 0
     best_model_state = None
@@ -161,7 +162,6 @@ def main():
         print(f"  Epoch {epoch+1}/{EPOCHS}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f}, LR: {current_lr:.6f}")
         scheduler.step(val_loss)
 
-        # Early stopping check
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             patience_counter = 0
@@ -169,23 +169,20 @@ def main():
         else:
             patience_counter += 1
             if patience_counter >= PATIENCE:
-                print(f"  ⏹️  Early stopping at epoch {epoch+1} (no improvement for {PATIENCE} epochs)")
+                print(f"  ⏹️  Early stopping at epoch {epoch+1}")
                 break
 
     train_time = time.time() - start_time
 
-    # Restore best model
     if best_model_state is not None:
         model.load_state_dict(best_model_state)
         print(f"  ✅ Restored best model (val_loss={best_val_loss:.4f})")
 
-    # Evaluate on validation set
     val_loss, val_acc, val_preds, val_labels = evaluate(model, val_loader, criterion, device)
     val_precision = precision_score(val_labels, val_preds, average='macro', zero_division=0)
     val_recall = recall_score(val_labels, val_preds, average='macro', zero_division=0)
     val_f1 = f1_score(val_labels, val_preds, average='macro', zero_division=0)
 
-    # Evaluate on test set
     inference_start = time.time()
     _, test_acc, test_preds, test_labels = evaluate(model, test_loader, criterion, device)
     inference_time = time.time() - inference_start
@@ -201,12 +198,10 @@ def main():
     print(f"⏱️  Training time: {train_time:.2f}s")
     print(f"⏱️  Inference time: {inference_time:.4f}s")
 
-    # Save model
     os.makedirs(os.path.dirname(MODEL_SAVE_PATH), exist_ok=True)
     torch.save(model.state_dict(), MODEL_SAVE_PATH)
     print(f"💾 Model saved to: {MODEL_SAVE_PATH}")
 
-    # Per-class metrics
     report = classification_report(test_labels, test_preds, target_names=class_names, output_dict=True)
     per_class_metrics = {}
     for cls in class_names:
@@ -217,16 +212,12 @@ def main():
             "support": int(report[cls]["support"]),
         }
 
-    # Confusion matrix
     cm = confusion_matrix(test_labels, test_preds).tolist()
-
-    # Dataset distribution
     train_label_counts = dict(Counter(all_train_labels))
 
-    # Save results
     os.makedirs(os.path.dirname(RESULTS_PATH), exist_ok=True)
     results = {
-        "model": "CNN",
+        "model": "LeNet",
         "accuracy": float(test_acc),
         "precision": float(test_precision),
         "recall": float(test_recall),

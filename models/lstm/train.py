@@ -1,9 +1,12 @@
 """
-CNN training script for file-type fragment classification.
+LSTM training script for file-type fragment classification.
+
+Treats byte sequences as temporal data and uses bidirectional LSTM layers
+to capture sequential patterns in file fragments.
 
 Usage:
-  python -m models.cnn.train
-  python models/cnn/train.py
+  python -m models.lstm.train
+  python models/lstm/train.py
 """
 
 import os
@@ -14,7 +17,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import DataLoader
 from sklearn.metrics import classification_report, accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 from collections import Counter
 
@@ -30,42 +33,59 @@ TRAIN_MAPPING = os.path.join(TRAIN_DIR, "fragment_mapping.csv")
 VAL_MAPPING = os.path.join(VAL_DIR, "fragment_mapping.csv")
 TEST_MAPPING = os.path.join(TEST_DIR, "fragment_mapping.csv")
 
-MODEL_SAVE_PATH = "saved_models/cnn/cnn_model.pth"
-RESULTS_PATH = "results/cnn_results.json"
+MODEL_SAVE_PATH = "saved_models/lstm/lstm_model.pth"
+RESULTS_PATH = "results/lstm_results.json"
 EPOCHS = 30
 BATCH_SIZE = 64
 LR = 0.001
-PATIENCE = 5  # Early stopping patience
-NUM_WORKERS = 0  # Disk I/O workers for DataLoader
+PATIENCE = 5
+NUM_WORKERS = 0
+
+# LSTM processes the sequence in chunks of SEQ_STEP bytes
+# 4096 bytes / 16 = 256 time steps of 16-dimensional input
+SEQ_STEP = 16
 
 
-# ========== CNN Model ==========
-class FragmentCNN(nn.Module):
-    def __init__(self, input_size, num_classes):
-        super(FragmentCNN, self).__init__()
-        self.conv1 = nn.Conv1d(1, 64, kernel_size=5, padding=2)
-        self.pool1 = nn.MaxPool1d(2)
-        self.conv2 = nn.Conv1d(64, 128, kernel_size=3, padding=1)
-        self.pool2 = nn.MaxPool1d(2)
-        self.flatten = nn.Flatten()
-        self.fc1 = nn.Linear(128 * (input_size // 4), 128)
+# ========== LSTM Model ==========
+class FragmentLSTM(nn.Module):
+    """
+    Bidirectional LSTM for byte sequence classification.
+    Reshapes (batch, 1, 4096) -> (batch, 256, 16) for sequential processing.
+    """
+    def __init__(self, input_size, num_classes, hidden_size=128, num_layers=2):
+        super().__init__()
+        self.seq_len = input_size // SEQ_STEP
+        self.feature_dim = SEQ_STEP
+
+        self.lstm = nn.LSTM(
+            input_size=self.feature_dim,
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            batch_first=True,
+            bidirectional=True,
+            dropout=0.3,
+        )
         self.dropout = nn.Dropout(0.3)
-        self.fc2 = nn.Linear(128, num_classes)
+        self.fc = nn.Linear(hidden_size * 2, num_classes)  # *2 for bidirectional
 
     def forward(self, x):
-        x = torch.relu(self.conv1(x))
-        x = self.pool1(x)
-        x = torch.relu(self.conv2(x))
-        x = self.pool2(x)
-        x = self.flatten(x)
-        x = torch.relu(self.fc1(x))
-        x = self.dropout(x)
-        x = self.fc2(x)
-        return x
+        # x shape: (batch, 1, chunk_size) from LazyFragmentDataset
+        x = x.squeeze(1)  # (batch, chunk_size)
+        x = x.view(x.size(0), self.seq_len, self.feature_dim)  # (batch, 256, 16)
+
+        lstm_out, (h_n, _) = self.lstm(x)
+        # Use final hidden states from both directions
+        # h_n shape: (num_layers*2, batch, hidden_size)
+        forward_final = h_n[-2]   # Last forward layer
+        backward_final = h_n[-1]  # Last backward layer
+        combined = torch.cat([forward_final, backward_final], dim=1)
+
+        out = self.dropout(combined)
+        out = self.fc(out)
+        return out
 
 
 def evaluate(model, loader, criterion, device):
-    """Evaluate model on a data loader. Returns loss, accuracy, predictions."""
     model.eval()
     total_loss = 0.0
     all_preds = []
@@ -85,7 +105,6 @@ def evaluate(model, loader, criterion, device):
 
 
 def main():
-    # Fit label encoder on all training labels (just reads CSV, no fragment data)
     print("📦 Fitting label encoder...")
     from sklearn.preprocessing import LabelEncoder
     all_train_labels = get_all_labels(TRAIN_MAPPING)
@@ -95,7 +114,6 @@ def main():
     num_classes = len(class_names)
     input_size = CHUNK_SIZE
 
-    # Create lazy-loading datasets (only indexes file paths, doesn't load data)
     print("📦 Indexing datasets...")
     train_dataset = LazyFragmentDataset(TRAIN_MAPPING, TRAIN_DIR, label_enc)
     val_dataset = LazyFragmentDataset(VAL_MAPPING, VAL_DIR, label_enc)
@@ -110,7 +128,6 @@ def main():
     val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS)
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS)
 
-    # Setup model
     device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
     print(f"🖥️  Using device: {device}")
 
@@ -119,22 +136,19 @@ def main():
     class_weights = len(all_train_labels) / (num_classes * label_counts)
     class_weights_tensor = torch.FloatTensor(class_weights).to(device)
 
-    model = FragmentCNN(input_size, num_classes).to(device)
+    model = FragmentLSTM(input_size, num_classes).to(device)
     criterion = nn.CrossEntropyLoss(weight=class_weights_tensor)
     optimizer = optim.Adam(model.parameters(), lr=LR)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=2, factor=0.5)
 
-    # Model parameters
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     model_size_mb = sum(p.numel() * p.element_size() for p in model.parameters()) / (1024 * 1024)
     print(f"📐 Parameters: {total_params:,} total, {trainable_params:,} trainable, {model_size_mb:.2f} MB")
 
-    # Training with validation monitoring + early stopping
-    print(f"\n🚀 Training CNN on {n_train} samples (patience={PATIENCE})...")
+    print(f"\n🚀 Training LSTM on {n_train} samples (patience={PATIENCE})...")
     start_time = time.time()
     history = {"train_loss": [], "val_loss": [], "val_accuracy": []}
-
     best_val_loss = float('inf')
     patience_counter = 0
     best_model_state = None
@@ -161,7 +175,6 @@ def main():
         print(f"  Epoch {epoch+1}/{EPOCHS}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f}, LR: {current_lr:.6f}")
         scheduler.step(val_loss)
 
-        # Early stopping check
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             patience_counter = 0
@@ -169,23 +182,20 @@ def main():
         else:
             patience_counter += 1
             if patience_counter >= PATIENCE:
-                print(f"  ⏹️  Early stopping at epoch {epoch+1} (no improvement for {PATIENCE} epochs)")
+                print(f"  ⏹️  Early stopping at epoch {epoch+1}")
                 break
 
     train_time = time.time() - start_time
 
-    # Restore best model
     if best_model_state is not None:
         model.load_state_dict(best_model_state)
         print(f"  ✅ Restored best model (val_loss={best_val_loss:.4f})")
 
-    # Evaluate on validation set
     val_loss, val_acc, val_preds, val_labels = evaluate(model, val_loader, criterion, device)
     val_precision = precision_score(val_labels, val_preds, average='macro', zero_division=0)
     val_recall = recall_score(val_labels, val_preds, average='macro', zero_division=0)
     val_f1 = f1_score(val_labels, val_preds, average='macro', zero_division=0)
 
-    # Evaluate on test set
     inference_start = time.time()
     _, test_acc, test_preds, test_labels = evaluate(model, test_loader, criterion, device)
     inference_time = time.time() - inference_start
@@ -201,12 +211,10 @@ def main():
     print(f"⏱️  Training time: {train_time:.2f}s")
     print(f"⏱️  Inference time: {inference_time:.4f}s")
 
-    # Save model
     os.makedirs(os.path.dirname(MODEL_SAVE_PATH), exist_ok=True)
     torch.save(model.state_dict(), MODEL_SAVE_PATH)
     print(f"💾 Model saved to: {MODEL_SAVE_PATH}")
 
-    # Per-class metrics
     report = classification_report(test_labels, test_preds, target_names=class_names, output_dict=True)
     per_class_metrics = {}
     for cls in class_names:
@@ -217,16 +225,12 @@ def main():
             "support": int(report[cls]["support"]),
         }
 
-    # Confusion matrix
     cm = confusion_matrix(test_labels, test_preds).tolist()
-
-    # Dataset distribution
     train_label_counts = dict(Counter(all_train_labels))
 
-    # Save results
     os.makedirs(os.path.dirname(RESULTS_PATH), exist_ok=True)
     results = {
-        "model": "CNN",
+        "model": "LSTM",
         "accuracy": float(test_acc),
         "precision": float(test_precision),
         "recall": float(test_recall),
@@ -239,6 +243,9 @@ def main():
             "total_params": total_params,
             "trainable_params": trainable_params,
             "model_size_mb": round(model_size_mb, 2),
+            "hidden_size": 128,
+            "num_layers": 2,
+            "seq_step": SEQ_STEP,
         },
         "training_history": history,
         "per_class_metrics": per_class_metrics,
