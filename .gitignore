@@ -31,8 +31,9 @@ datasets/test/
 predict_input/*.bin
 predictions_*.csv
 
-# Saved models (large binary files)
-saved_models/
+# Saved models
+# RF model excluded due to size (6.4 GB) — retrain with: python models/random_forest/train.py
+saved_models/random_forest/
 
 # Generated graphs (regenerated via generate_graphs.py)
 results/*.png
