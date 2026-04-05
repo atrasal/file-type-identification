@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-from utils import clean_file_data
+from utils import clean_file_data, create_fragments
 from models import load_models, predict_file
 from visualizations import (
     plot_comparison_bars, plot_radar_comparison, plot_training_history,
@@ -226,64 +226,135 @@ elif show_section == "📁 File Upload & Predict":
     if not loaded_models:
         st.warning("⚠️ No models could be loaded. Please ensure models are saved in `saved_models/` directory.")
     
-    st.info("📤 Upload any file to predict its type using 8 different machine learning models.")
+    st.info("📤 Choose an upload option and upload your file for type prediction using 8 different ML models.")
     
-    uploaded_file = st.file_uploader("📁 Upload a file to predict its type:", type=None)
+    # Two upload options
+    upload_option = st.radio(
+        "📋 Select Upload Option:",
+        ["📦 Upload Binary (.bin) File", "📄 Upload Direct File"],
+        horizontal=True,
+        key="upload_option"
+    )
+    
+    uploaded_file = None
+    
+    if upload_option == "📦 Upload Binary (.bin) File":
+        st.markdown("#### 📦 Binary File Upload")
+        st.markdown("Upload a **.bin** file (raw binary data)")
+        uploaded_file = st.file_uploader("📁 Choose a .bin file:", type=["bin"], key="bin_uploader")
+    
+    else:  # Direct File
+        st.markdown("#### 📄 Direct File Upload")
+        st.markdown("Upload any file type (document, image, archive, etc.)")
+        uploaded_file = st.file_uploader("📁 Choose a file:", type=None, key="direct_uploader")
     
     if uploaded_file is not None:
         file_bytes = uploaded_file.read()
         
         st.success(f"✅ File uploaded: **{uploaded_file.name}**")
         
-        st.markdown("### 🔧 File Preprocessing")
+        st.markdown("### 🔧 File Analysis & Fragmentation")
         
-        with st.spinner("🔍 Detecting file type and cleaning headers/footers..."):
-            cleaned_data, detection, clean_stats = clean_file_data(file_bytes, uploaded_file.name)
+        # Display file info
+        file_ext = uploaded_file.name.split('.')[-1].upper() if '.' in uploaded_file.name else "UNKNOWN"
         
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.metric("📄 Original Size", f"{clean_stats['original_size']:,} bytes")
+            st.metric("📄 File Name", uploaded_file.name.split('/')[-1][:30])
         with col2:
-            st.metric("🧹 Cleaned Size", f"{clean_stats['cleaned_size']:,} bytes")
+            st.metric("💾 File Size", f"{len(file_bytes) / 1024:.2f} KB")
         with col3:
-            st.metric("🗑️ Bytes Removed", f"{clean_stats['bytes_removed']:,} bytes")
+            st.metric("🏷️ Extension", file_ext)
         with col4:
-            st.metric("📊 Removal %", f"{clean_stats['removal_percentage']:.1f}%")
+            st.metric("📊 Total Bytes", f"{len(file_bytes):,}")
         
-        with st.expander("📋 Preprocessing Details", expanded=True):
-            col1, col2, col3 = st.columns(3)
+        st.markdown("---")
+        
+        # File fragmentation analysis
+        st.markdown("#### 🔨 Fragment Analysis")
+        
+        with st.spinner("📦 Creating file fragments..."):
+            fragments = create_fragments(file_bytes, chunk_size=4096, num_fragments=5)
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("📦 Total Fragments", len(fragments))
+        with col2:
+            st.metric("📏 Fragment Size", "4096 bytes")
+        with col3:
+            st.metric("🔄 Sampling Method", "Start/Mid/End")
+        
+        # Show fragment details
+        with st.expander("📋 Fragment Details", expanded=False):
+            for i, fragment in enumerate(fragments):
+                st.markdown(f"**Fragment {i+1}:**")
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Size", f"{len(fragment)} bytes")
+                with col2:
+                    st.metric("Non-Zero Bytes", np.count_nonzero(fragment))
+                with col3:
+                    entropy = -np.sum((np.bincount(fragment.astype(int), minlength=256) / len(fragment))[
+                        np.nonzero(np.bincount(fragment.astype(int), minlength=256) / len(fragment))
+                    ] * np.log2((np.bincount(fragment.astype(int), minlength=256) / len(fragment))[
+                        np.nonzero(np.bincount(fragment.astype(int), minlength=256) / len(fragment))
+                    ]))
+                    st.metric("Entropy", f"{entropy:.2f}")
+                st.divider()
+        
+        st.markdown("---")
+        
+        # Additional preprocessing only for direct files (not binary)
+        if upload_option == "📄 Upload Direct File":
+            st.markdown("### 🧹 File Preprocessing")
             
+            with st.spinner("🔍 Detecting file type and cleaning headers/footers..."):
+                cleaned_data, detection, clean_stats = clean_file_data(file_bytes, uploaded_file.name)
+            
+            col1, col2, col3, col4 = st.columns(4)
             with col1:
-                st.markdown("**Type Detection:**")
-                if detection['detected_type'] != 'Unknown':
-                    st.success(f"✅ Detected as: **{detection['detected_type']}**")
-                else:
-                    st.info("ℹ️ Type: Unknown (will use raw bytes)")
-            
+                st.metric("📄 Original Size", f"{clean_stats['original_size']:,} bytes")
             with col2:
-                st.markdown("**Header Information:**")
-                if detection['has_header']:
-                    st.success(f"✅ Header found & removed: **{detection['header_len']} bytes**")
-                else:
-                    st.info("ℹ️ No recognizable header")
-            
+                st.metric("🧹 Cleaned Size", f"{clean_stats['cleaned_size']:,} bytes")
             with col3:
-                st.markdown("**Footer Information:**")
-                if detection['has_footer']:
-                    st.success(f"✅ Footer found & removed: **{detection['footer_len']} bytes**")
-                else:
-                    st.info("ℹ️ No recognizable footer")
+                st.metric("🗑️ Bytes Removed", f"{clean_stats['bytes_removed']:,} bytes")
+            with col4:
+                st.metric("📊 Removal %", f"{clean_stats['removal_percentage']:.1f}%")
             
-            st.markdown("---")
-            st.markdown("**Original File Info:**")
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("📄 File Name", uploaded_file.name.split('/')[-1][:40])
-            with col2:
-                st.metric("💾 Total Size", f"{len(file_bytes) / 1024:.2f} KB")
-            with col3:
-                file_ext = uploaded_file.name.split('.')[-1].upper() if '.' in uploaded_file.name else "UNKNOWN"
-                st.metric("🏷️ Extension", file_ext)
+            with st.expander("📋 Preprocessing Details", expanded=True):
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    st.markdown("**Type Detection:**")
+                    if detection['detected_type'] != 'Unknown':
+                        st.success(f"✅ Detected as: **{detection['detected_type']}**")
+                    else:
+                        st.info("ℹ️ Type: Unknown (will use raw bytes)")
+                
+                with col2:
+                    st.markdown("**Header Information:**")
+                    if detection['has_header']:
+                        st.success(f"✅ Header found & removed: **{detection['header_len']} bytes**")
+                    else:
+                        st.info("ℹ️ No recognizable header")
+                
+                with col3:
+                    st.markdown("**Footer Information:**")
+                    if detection['has_footer']:
+                        st.success(f"✅ Footer found & removed: **{detection['footer_len']} bytes**")
+                    else:
+                        st.info("ℹ️ No recognizable footer")
+        
+        else:
+            # For binary files, use raw data
+            cleaned_data = file_bytes
+            detection = {'detected_type': '.BIN (Raw Binary)'}
+            clean_stats = {
+                'original_size': len(file_bytes),
+                'cleaned_size': len(file_bytes),
+                'bytes_removed': 0,
+                'removal_percentage': 0.0
+            }
         
         st.markdown("---")
         
