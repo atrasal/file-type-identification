@@ -36,9 +36,9 @@ TEST_MAPPING = os.path.join(TEST_DIR, "fragment_mapping.csv")
 MODEL_SAVE_PATH = "saved_models/mlp/mlp_model.pth"
 RESULTS_PATH = "results/mlp_results.json"
 EPOCHS = 30
-BATCH_SIZE = 64
-LR = 0.001
-PATIENCE = 5
+BATCH_SIZE = 128
+LR = 0.0003
+PATIENCE = 7
 NUM_WORKERS = 0
 
 
@@ -48,14 +48,17 @@ class FragmentMLP(nn.Module):
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(input_size, 512),
-            nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(512, 256),
-            nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(256, 128),
+            nn.BatchNorm1d(512),
             nn.ReLU(),
             nn.Dropout(0.2),
+            nn.Linear(512, 256),
+            nn.BatchNorm1d(256),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(256, 128),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.Dropout(0.1),
             nn.Linear(128, num_classes),
         )
 
@@ -119,7 +122,7 @@ def main():
 
     model = FragmentMLP(input_size, num_classes).to(device)
     criterion = nn.CrossEntropyLoss(weight=class_weights_tensor)
-    optimizer = optim.Adam(model.parameters(), lr=LR)
+    optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=1e-4)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=2, factor=0.5)
 
     total_params = sum(p.numel() for p in model.parameters())
@@ -143,6 +146,7 @@ def main():
             outputs = model(batch_X)
             loss = criterion(outputs, batch_y)
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
             running_loss += loss.item()
 

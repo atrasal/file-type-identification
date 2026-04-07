@@ -92,7 +92,7 @@ def main():
     # Train LinearSVC (no calibration wrapper — avoids 4x training overhead)
     print(f"\n🚀 Training SVM (LinearSVC) on {n_train} samples ({X_train_feat.shape[1]} features)...")
     start_time = time.time()
-    model = LinearSVC(max_iter=5000, random_state=42, dual='auto')
+    model = LinearSVC(max_iter=5000, random_state=42, dual='auto', class_weight='balanced')
     model.fit(X_train_feat, y_train)
     train_time = time.time() - start_time
 
@@ -161,8 +161,9 @@ def main():
         "val_f1_score": float(val_f1),
         "parameters": {
             "model_size_mb": round(model_size_mb, 2),
-            "max_iter": 2000,
+            "max_iter": model.max_iter,
             "kernel": "linear",
+            "class_weight": "balanced",
         },
         "per_class_metrics": per_class_metrics,
         "confusion_matrix": cm,

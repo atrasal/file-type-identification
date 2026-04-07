@@ -34,7 +34,17 @@ predictions_*.csv
 # Saved models
 # RF model excluded due to size (6.4 GB) — retrain with: python models/random_forest/train.py
 saved_models/random_forest/
+# CNN model excluded due to size (64 MB)
+saved_models/cnn/
+# XGBoost model excluded due to size (91 MB)
+saved_models/xgboost/
 
 # Generated graphs (regenerated via generate_graphs.py)
 results/*.png
 results/*.pdf
+
+# Report images (regenerated via generate_report_graphs.py)
+report/report_images/
+
+# Zip files
+*.zip

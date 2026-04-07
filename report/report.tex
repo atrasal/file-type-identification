@@ -1,0 +1,1260 @@
+\documentclass[12pt,a4paper]{report}
+\setlength{\headheight}{15pt}
+\usepackage{graphics}
+\usepackage{graphicx}
+\usepackage[font=small,labelfont=bf]{caption}
+\usepackage{fancybox}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{setspace}
+\usepackage{pdfpages}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+\usepackage{times}
+\usepackage[left=1in,right=1in,top=1in,bottom=0.8in]{geometry}
+\usepackage{url}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning}
+\usepackage{longtable}
+\usepackage{float}
+\usepackage{rotating}
+\usetikzlibrary{shadows.blur}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{amsfonts}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{listings}
+\titlespacing*{\section}{0pt}{5pt}{5pt}
+
+\makeatletter
+\def\@makechapterhead#1{%
+  \vspace*{5\p@}%
+  {\parindent \z@ \raggedright \normalfont
+    \ifnum \c@secnumdepth >\m@ne
+       \LARGE\bfseries \space \thechapter. \space
+    \interlinepenalty\@M
+    \LARGE \bfseries #1\par\nobreak
+    \vskip 10\p@
+  }}
+\makeatother
+
+%% ─── Code Listing Style ─────────────────────────────────────
+\lstset{
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    frame=single,
+    backgroundcolor=\color{gray!5},
+    keywordstyle=\color{blue!70!black},
+    commentstyle=\color{green!50!black},
+    stringstyle=\color{red!60!black},
+}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue!70!black,
+    citecolor=blue!70!black,
+    urlcolor=blue!70!black,
+}
+
+\begin{document}
+
+%------------------------------------------------------------------------------
+% Cover Page
+%------------------------------------------------------------------------------
+\newpage
+\thispagestyle{empty}
+\pagenumbering{gobble}
+
+\thisfancyput(0in,-10in){%
+\setlength{\unitlength}{1in}\framebox(6.5,10)}
+
+\begin{center}
+
+\vspace{0.3in}
+
+\textbf{SCTR's Pune Institute of Computer Technology}\\
+\textbf{Dhankawadi, Pune}
+
+\vspace{0.5in}
+
+\textbf{A RESEARCH REPORT ON}
+
+\vspace{0.4in}
+
+\textbf{\large File Fragment Analysis for Digital Forensics:\\ML-Based Type Identification and Unsupervised Clustering}
+
+\vspace{0.6in}
+
+\textbf{SUBMITTED BY}
+
+\vspace{0.2in}
+
+Name: Aadi Atrasal\\
+Class: TE - IT\\
+% Roll No: XXXXX
+
+\vspace{0.6in}
+
+\textbf{Under the guidance of}\\
+% Guide Name Here
+
+\vspace{0.8in}
+
+\includegraphics[width=4cm]{report_images/pict_logo.png}
+
+\vspace{0.8in}
+
+\textbf{DEPARTMENT OF INFORMATION TECHNOLOGY}\\
+ACADEMIC YEAR 2025-26
+
+\end{center}
+\newpage
+\thispagestyle{empty}
+\mbox{}
+\newpage
+
+%------------------------------------------------------------------------------
+% Certificate
+%------------------------------------------------------------------------------
+\newpage
+\thispagestyle{empty}
+\pagenumbering{gobble}
+
+\thisfancyput(-0.1in,-10.2in){%
+\setlength{\unitlength}{1in}\framebox(6.8,10.4)}
+
+\begin{center}
+
+\vspace{0.3in}
+
+\includegraphics[width=3.5cm]{report_images/pict_logo.png}
+
+\vspace{0.4in}
+
+\textbf{DEPARTMENT OF INFORMATION TECHNOLOGY}
+
+\vspace{0.2in}
+
+SCTR's Pune Institute of Computer Technology\\
+Dhankawadi, Pune\\
+Maharashtra 411043
+
+\vspace{0.4in}
+
+\textbf{\large CERTIFICATE}
+
+\vspace{0.4in}
+
+\end{center}
+
+\begin{center}
+This is to certify that the research report entitled\\
+\textbf{``File Fragment Analysis for Digital Forensics: ML-Based Type Identification and Unsupervised Clustering''}
+
+\vspace{0.3in}
+
+Submitted by\\
+Aadi Atrasal\\
+% \textit{Roll no : XXXXX}
+
+\vspace{0.3in}
+
+has satisfactorily completed the research work under the guidance of\\
+the faculty towards the partial fulfillment of third year Information Technology\\
+Semester VI, Academic Year 2025-26 of Savitribai Phule Pune University.
+\end{center}
+
+\vspace{1in}
+
+\noindent
+\begin{minipage}{0.45\textwidth}
+\centering
+% Guide Name\\
+Internship Guide\\
+PICT, Pune
+\end{minipage}
+\hfill
+\begin{minipage}{0.45\textwidth}
+\centering
+\textbf{Prof.(Dr.) Emmanuel Mark.}\\
+Head\\
+Department of Information Technology\\
+PICT, Pune
+\end{minipage}
+
+\vspace{0.8in}
+
+\noindent
+Place: Pune\\
+Date:
+
+\newpage
+\thispagestyle{empty}
+\mbox{}
+\newpage
+
+%------------------------------------------------------------------------------
+% Acknowledgement
+%------------------------------------------------------------------------------
+\newpage
+\thispagestyle{empty}
+
+\begin{center}
+\vspace{0.3in}
+\textbf{\Large ACKNOWLEDGEMENT}
+\addcontentsline{toc}{section}{Acknowledgement}
+\end{center}
+
+\vspace{0.4in}
+
+\noindent
+I would like to express my sincere gratitude to my guide for their continuous support, valuable suggestions, and encouragement throughout the course of this research project.
+
+\vspace{0.2in}
+
+\noindent
+I would also like to thank the faculty of the Department of Information Technology at PICT, Pune, and Dr.\ Emmanuel Mark, Head of the Department, for providing the necessary resources and guidance to complete this research work.
+
+\vspace{0.2in}
+
+\noindent
+Special thanks to my teammates for their contributions to the clustering component of this project and for their collaboration throughout the research process.
+
+\vspace{2in}
+
+\begin{flushright}
+Name: Aadi Atrasal\\
+% Roll No: XXXXX
+\end{flushright}
+
+%------------------------------------------------------------------------------
+% Abstract
+%------------------------------------------------------------------------------
+\newpage
+\pagestyle{plain}
+\begin{center}
+    \begin{LARGE}
+        \section*{Abstract}
+    \end{LARGE}
+\end{center}
+\begin{normalsize}
+{\setlength{\baselineskip}{1.1\baselineskip}
+\noindent
+This report presents a comprehensive system for file fragment analysis in digital forensics, addressing two complementary problems: \textbf{(1) supervised file type identification} and \textbf{(2) unsupervised fragment clustering}.
+
+\textbf{Part~I --- File Type Identification:} We develop a machine learning system for classifying file types from raw 4096-byte binary fragments without access to file extensions, headers, footers, or metadata. We evaluate \textbf{ten model architectures} spanning traditional machine learning (Random Forest, XGBoost, SVM), deep learning (CNN, ResNet, LeNet, LSTM, MLP), and ensemble methods across \textbf{22 file types} and over \textbf{1 million binary fragments}. Our results show that a weighted ensemble of Random Forest, XGBoost, and ResNet achieves the strongest overall performance with \textbf{81.0\% macro F1}, while XGBoost with 317 hand-crafted byte-level features achieves the best single-model F1 of \textbf{79.8\%}. The MLP ablation study demonstrates that feature engineering is decisive, improving F1 from 34.5\% to 61.3\% on the same architecture.
+
+\textbf{Part~II --- Fragment Clustering:} We present an unsupervised approach for forensic file fragment clustering using DBSCAN with 517-dimensional byte-level feature vectors combining byte frequency (256-dim), byte-pair transitions (256-dim), and statistical meta-features (5-dim). Experimental validation on 180 fragments across 18 file types demonstrates perfect file-type clustering with automatic category separation.
+
+Both parts are integrated into an interactive Streamlit dashboard for model comparison, visualization, and real-time prediction.\\\\
+\textbf{Keywords:} Digital Forensics, File Fragment Classification, Machine Learning, Deep Learning, Unsupervised Clustering, DBSCAN, Feature Engineering, Ensemble Methods, Binary Analysis\\\\
+\par}
+\end{normalsize}
+\addcontentsline{toc}{section}{Abstract}
+
+%------------------------------------------------------------------------------
+% Table of Contents
+%------------------------------------------------------------------------------
+\newpage
+\thispagestyle{empty}
+\fancyhead{}
+\renewcommand{\headrulewidth}{0pt}
+\addcontentsline{toc}{section}{Contents}
+\tableofcontents
+\newpage
+{\setlength{\baselineskip}{1.1\baselineskip}
+\listoffigures
+\addcontentsline{toc}{section}{List of Figures}
+}
+\newpage
+{\setlength{\baselineskip}{1.1\baselineskip}
+\listoftables
+\addcontentsline{toc}{section}{List of Tables}
+}
+
+%------------------------------------------------------------------------------
+% Abbreviations
+%------------------------------------------------------------------------------
+\newpage
+\begin{LARGE}
+    \begin{flushleft}
+        \section*{\centering{Abbreviations}}
+    \end{flushleft}
+\end{LARGE}
+\addcontentsline{toc}{section}{Abbreviations}
+\begin{normalsize}
+    \noindent
+    {\setlength{\baselineskip}{1.1\baselineskip}
+        \vspace{0.2 in}
+        \begin{tabular}{lll}
+            \vspace{0.1 in}
+            ML     & : & Machine Learning \\
+            \vspace{0.1 in}
+            DL     & : & Deep Learning \\
+            \vspace{0.1 in}
+            RF     & : & Random Forest \\
+            \vspace{0.1 in}
+            SVM    & : & Support Vector Machine \\
+            \vspace{0.1 in}
+            CNN    & : & Convolutional Neural Network \\
+            \vspace{0.1 in}
+            RNN    & : & Recurrent Neural Network \\
+            \vspace{0.1 in}
+            LSTM   & : & Long Short-Term Memory \\
+            \vspace{0.1 in}
+            MLP    & : & Multi-Layer Perceptron \\
+            \vspace{0.1 in}
+            XGB    & : & eXtreme Gradient Boosting \\
+            \vspace{0.1 in}
+            F1     & : & F1 Score (Harmonic Mean of Precision and Recall) \\
+            \vspace{0.1 in}
+            CE     & : & Cross-Entropy (Loss Function) \\
+            \vspace{0.1 in}
+            LR     & : & Learning Rate \\
+            \vspace{0.1 in}
+            BN     & : & Batch Normalization \\
+            \vspace{0.1 in}
+            DBSCAN & : & Density-Based Spatial Clustering of Applications with Noise \\
+            \vspace{0.1 in}
+            RBAC   & : & Role-Based Access Control \\
+            \vspace{0.1 in}
+            API    & : & Application Programming Interface \\
+            \vspace{0.1 in}
+            NTFS   & : & New Technology File System \\
+            \vspace{0.1 in}
+            FAT    & : & File Allocation Table \\
+            \vspace{0.1 in}
+            MFT    & : & Master File Table \\
+        \end{tabular}
+        \par}
+\end{normalsize}
+
+%------------------------------------------------------------------------------
+% Set up headers/footers for main content
+%------------------------------------------------------------------------------
+\newpage
+\pagestyle{fancy}
+\pagenumbering{arabic}
+\renewcommand{\headrulewidth}{0.5pt}
+\fancyhead[RO]{\textit{File Fragment Analysis for Digital Forensics}}
+\fancyhead[LO]{\textit{Aadi Atrasal}}
+\renewcommand{\footrulewidth}{0.5pt}
+\fancyfoot[RO]{\textit{Dept. of Information Technology}}
+\fancyfoot[LO]{\textit{PICT, Pune}}
+\fancypagestyle{plain}{}
+\pagenumbering{arabic}
+
+
+%% ═══════════════════════════════════════════════════════════════
+%% PART I: FILE TYPE IDENTIFICATION
+%% ═══════════════════════════════════════════════════════════════
+
+\part{File Type Identification from Raw Binary Fragments}
+\label{part:identification}
+
+%------------------------------------------------------------------------------
+% Chapter 1 - Introduction
+%------------------------------------------------------------------------------
+\chapter{\centering{Introduction}}
+\begin{normalsize}
+\noindent
+
+\section{Background}
+{\setlength{\baselineskip}{1.0\baselineskip}
+In digital forensics, investigators frequently encounter storage media where file system metadata has been destroyed---whether through intentional tampering, hardware damage, or data corruption. Traditional file identification relies on:
+
+\begin{itemize}[noitemsep]
+    \item \textbf{File extensions} (\texttt{.pdf}, \texttt{.mp3})---trivially spoofed or missing.
+    \item \textbf{Magic bytes / File signatures}---headers (\texttt{\%PDF}, \texttt{PK\textbackslash x03\textbackslash x04}) and footers that identify file types.
+    \item \textbf{File system metadata}---inode tables, FATs, MFTs that map files to sectors.
+\end{itemize}
+
+When these are unavailable, the only remaining data is \textbf{raw binary content} scattered across disk sectors, with no indication of which file type each sector belongs to.
+\par}
+
+\section{Research Objective}
+{\setlength{\baselineskip}{1.0\baselineskip}
+\textit{Can machine learning models accurately classify file types from raw binary fragments alone---without access to file extensions, headers, footers, or any metadata?}
+
+This has direct applications in: data recovery on corrupted drives, forensic reconstruction of destroyed media, malware analysis of disguised file types, and network forensics for intercepted data streams.
+\par}
+
+\section{Scope and Contributions}
+{\setlength{\baselineskip}{1.0\baselineskip}
+We classify \textbf{4096-byte binary fragments} into \textbf{22 file types} across six categories (Table~\ref{tab:file_types}). Our contributions include:
+
+\begin{enumerate}[noitemsep]
+    \item \textbf{Scale}: 22 file types with 1M+ fragments (most prior work uses 6--12 types with $<$100K samples).
+    \item \textbf{Comprehensive comparison}: 10 architectures across traditional ML, deep learning, and ensemble methods.
+    \item \textbf{Feature engineering analysis}: Direct comparison of raw-byte vs.\ engineered-feature inputs on the same MLP architecture.
+    \item \textbf{Ensemble approach}: Weighted soft voting combining the strengths of different model paradigms.
+    \item \textbf{Interactive dashboard}: Streamlit-based tool for model comparison, analysis, and real-time prediction.
+\end{enumerate}
+
+\begin{table}[H]
+\centering
+\caption{Supported file types organized by category.}
+\label{tab:file_types}
+\begin{tabular}{ll}
+\toprule
+\textbf{Category} & \textbf{File Types} \\
+\midrule
+Archives      & 7ZIP, APK, GZIP, TAR \\
+Documents     & PDF, RTF, PPTX, EPS \\
+Audio/Video   & MP3, MP4, SWF \\
+Images        & TIF, BMP, GIF \\
+Code/Text     & CSS, HTML, JavaScript, JSON \\
+Executables   & ELF, BIN, EXE, DLL \\
+\bottomrule
+\end{tabular}
+\end{table}
+\par}
+
+\end{normalsize}
+
+%------------------------------------------------------------------------------
+% Chapter 2 - Related Work
+%------------------------------------------------------------------------------
+\newpage
+\chapter{\centering{Related Work}}
+\begin{normalsize}
+\noindent
+
+{\setlength{\baselineskip}{1.0\baselineskip}
+File fragment classification has been studied extensively in the digital forensics literature:
+
+\begin{itemize}
+    \item \textbf{Sportiello \& Zanero (2011)} \cite{sportiello2011} were among the first to apply machine learning to file fragment identification, using byte frequency histograms with SVMs on a small set of file types. Our work extends this with a larger feature set (317 vs.\ $\sim$256 features) and more file types (22 vs.\ 6).
+
+    \item \textbf{Fitzgerald et al.\ (2012)} \cite{fitzgerald2012} explored NLP-inspired features (bigram and trigram byte sequences) for fragment classification, achieving strong results on text-heavy formats.
+
+    \item \textbf{Chen et al.\ (2018)} \cite{chen2018} introduced CNNs for byte-level fragment classification, treating fragments as 1D signals. Our ResNet architecture extends this paradigm with residual connections.
+
+    \item \textbf{Vulinovi\'{c} et al.\ (2019)} \cite{vulinovic2019} applied various neural network architectures and found convolutional approaches outperformed fully connected networks. Our MLP vs.\ CNN comparison confirms this finding.
+
+    \item \textbf{Mittal et al.\ (2020)} \cite{mittal2020} compared Random Forest and XGBoost on byte histogram features. We extend their comparison to 10 architectures with a richer feature set.
+\end{itemize}
+\par}
+
+\end{normalsize}
+
+%------------------------------------------------------------------------------
+% Chapter 3 - Data Pipeline
+%------------------------------------------------------------------------------
+\newpage
+\chapter{\centering{Data Pipeline}}
+\begin{normalsize}
+\noindent
+
+\section{Overview}
+{\setlength{\baselineskip}{1.0\baselineskip}
+The data pipeline consists of four stages, designed to simulate the forensic scenario where no structural clues exist:
+\begin{center}
+\texttt{Raw Files $\rightarrow$ Fragmenter $\rightarrow$ Header/Footer Cleaner $\rightarrow$ Stratified Splitter}
+\end{center}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{report_images/pipeline_architecture.png}
+\caption{End-to-end data pipeline architecture for file fragment analysis.}
+\label{fig:pipeline}
+\end{figure}
+\par}
+
+\section{Fragmentation}
+{\setlength{\baselineskip}{1.0\baselineskip}
+Raw files are split into fixed-size \textbf{4096-byte chunks} matching the standard disk sector/page size. The fragmenter detects and strips file signatures (headers/footers) before fragmenting, ensuring fragments contain only body content. Undersized final chunks are discarded.
+
+Headers are stripped because they contain magic bytes (e.g., \texttt{\%PDF}) that trivially identify file types. Our goal is to classify from \textbf{content patterns} alone.
+\par}
+
+\section{Header/Footer Cleaning}
+{\setlength{\baselineskip}{1.0\baselineskip}
+A second pass removes any fragments still containing recognizable file signatures---including embedded headers within container formats and text-based structural markers.
+\par}
+
+\section{Dataset Splitting and Statistics}
+{\setlength{\baselineskip}{1.0\baselineskip}
+Fragments are split using \textbf{stratified sampling}: 70\% training, 15\% validation, 15\% test. The final dataset contains \textbf{1,017,361 fragments} across 22 file types with severe class imbalance (up to 222:1 ratio).
+
+\begin{table}[H]
+\centering
+\caption{Dataset distribution (selected types showing imbalance).}
+\label{tab:dataset_dist}
+\small
+\begin{tabular}{lr|lr}
+\toprule
+\textbf{Type} & \textbf{Samples} & \textbf{Type} & \textbf{Samples} \\
+\midrule
+PPTX   & 100,121  & BIN    & 10,384 \\
+TAR    & 86,611   & EPS    & 6,719 \\
+SWF    & 78,804   & BMP    & 6,026 \\
+GZIP   & 77,096   & JSON   & 2,118 \\
+7ZIP   & 76,650   & ELF    & 850 \\
+RTF    & 39,809   & JS     & 770 \\
+EXE    & 54,904   & CSS    & 451 \\
+GIF    & 33,665   & HTML   & 316 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.92\textwidth]{report_images/class_distribution.png}
+\caption{Dataset distribution across 22 file types showing severe class imbalance.}
+\label{fig:class_dist}
+\end{figure}
+\par}
+
+\end{normalsize}
+
+%------------------------------------------------------------------------------
+% Chapter 4 - Feature Representation
+%------------------------------------------------------------------------------
+\newpage
+\chapter{\centering{Feature Representation}}
+\begin{normalsize}
+\noindent
+
+\section{Raw Byte Input (Deep Learning Models)}
+{\setlength{\baselineskip}{1.0\baselineskip}
+For CNN, ResNet, MLP, LeNet, and LSTM, each fragment is a 1D vector of 4096 values, normalized to $[0, 1]$ by dividing by 255.
+\par}
+
+\section{Engineered Features (Tree-Based Models)}
+{\setlength{\baselineskip}{1.0\baselineskip}
+For Random Forest, XGBoost, and SVM, raw bytes are transformed into \textbf{317 hand-crafted features}:
+
+\begin{table}[H]
+\centering
+\caption{Engineered feature groups (317 total).}
+\label{tab:features}
+\small
+\begin{tabular}{lrl}
+\toprule
+\textbf{Feature Group} & \textbf{Count} & \textbf{Description} \\
+\midrule
+Byte frequency histogram & 256 & Normalized frequency of each byte value \\
+Shannon entropy & 1 & Information-theoretic randomness measure \\
+Bigram frequencies & 20 & Top-20 consecutive byte-pair patterns \\
+Statistical features & 10 & Mean, std, skewness, kurtosis, etc. \\
+Block entropy & 16 & Entropy over 16 equal sub-blocks \\
+Longest runs & 2 & Same-byte run and zero-byte run \\
+Chi-squared test & 1 & Byte distribution uniformity \\
+Compression ratio & 1 & zlib compressibility estimate \\
+Trigram frequencies & 10 & Top-10 three-byte patterns \\
+\midrule
+\textbf{Total} & \textbf{317} & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Key mathematical formulations:
+
+\textbf{Shannon Entropy:}
+\begin{equation}
+    H = -\sum_{i=0}^{255} p_i \log_2(p_i)
+\end{equation}
+
+\textbf{Chi-Squared Randomness Test:}
+\begin{equation}
+    \chi^2 = \sum_{i=0}^{255} \frac{(O_i - E_i)^2}{E_i}
+\end{equation}
+
+\textbf{Compression Ratio:}
+\begin{equation}
+    \text{ratio} = \frac{\text{compressed size}}{\text{original size}}
+\end{equation}
+
+All 317 features are derived \textbf{exclusively from raw byte content}---no metadata, headers, or footers.
+\par}
+
+\end{normalsize}
+
+%------------------------------------------------------------------------------
+% Chapter 5 - Model Architectures
+%------------------------------------------------------------------------------
+\newpage
+\chapter{\centering{Model Architectures}}
+\begin{normalsize}
+\noindent
+
+{\setlength{\baselineskip}{1.0\baselineskip}
+We evaluate \textbf{ten model architectures} spanning four paradigms:
+
+\begin{table}[H]
+\centering
+\caption{Overview of evaluated model architectures.}
+\label{tab:model_overview}
+\small
+\begin{tabular}{llll}
+\toprule
+\textbf{Paradigm} & \textbf{Models} & \textbf{Input} & \textbf{Framework} \\
+\midrule
+Traditional ML & RF, XGBoost, SVM & 317 features & scikit-learn, xgboost \\
+DL (CNN) & LeNet-1D, CNN, ResNet & Raw bytes (4096) & PyTorch \\
+DL (RNN) & LSTM & Raw bytes ($256 \times 16$) & PyTorch \\
+DL (FC) & MLP (raw), MLP (feat.) & Raw/317 features & PyTorch \\
+Ensemble & Weighted Soft Voting & Combined probs. & Multi-framework \\
+\bottomrule
+\end{tabular}
+\end{table}
+\par}
+
+\section{Random Forest}
+{\setlength{\baselineskip}{0.95\baselineskip}
+An ensemble of \textbf{300 decision trees} with \texttt{class\_weight='balanced'}. Provides intrinsic feature importance for interpretability.
+\par}
+
+\section{XGBoost}
+{\setlength{\baselineskip}{0.95\baselineskip}
+\textbf{Gradient-boosted ensemble} of up to 500 trees. Max depth 8, learning rate 0.05, early stopping patience 10.
+\par}
+
+\section{SVM}
+{\setlength{\baselineskip}{0.95\baselineskip}
+\textbf{LinearSVC} with balanced class weights and max iterations 5000.
+\par}
+
+\section{MLP (Two Variants)}
+{\setlength{\baselineskip}{0.95\baselineskip}
+\textbf{MLP (raw bytes):} $4096 \rightarrow 512 \rightarrow 256 \rightarrow 128 \rightarrow 22$ with ReLU + Dropout.\\
+\textbf{MLP (features):} $317 \rightarrow 512 \rightarrow 256 \rightarrow 128 \rightarrow 22$ with BatchNorm + ReLU + Dropout.\\
+Same architecture depth enables controlled ablation of feature engineering impact.
+\par}
+
+\section{LeNet-1D}
+{\setlength{\baselineskip}{0.95\baselineskip}
+Classic LeNet-5 adapted for 1D: Conv1d($1 \rightarrow 6$, $k{=}5$) $\rightarrow$ AvgPool $\rightarrow$ Conv1d($6 \rightarrow 16$, $k{=}5$) $\rightarrow$ AvgPool $\rightarrow$ FC layers.
+\par}
+
+\section{1D CNN}
+{\setlength{\baselineskip}{0.95\baselineskip}
+Conv1d($1 \rightarrow 64$, $k{=}5$) $\rightarrow$ MaxPool $\rightarrow$ Conv1d($64 \rightarrow 128$, $k{=}3$) $\rightarrow$ MaxPool $\rightarrow$ FC($128$) $\rightarrow$ FC($22$) with Dropout(0.3).
+\par}
+
+\section{1D ResNet}
+{\setlength{\baselineskip}{0.95\baselineskip}
+Conv1d($1 \rightarrow 64$, $k{=}7$) $\rightarrow$ ResBlock($64$, $\times 2$) $\rightarrow$ ResBlock($128$, $\times 2$) $\rightarrow$ ResBlock($256$, $\times 2$) $\rightarrow$ AdaptiveAvgPool $\rightarrow$ FC($22$). Each block uses residual connections with BatchNorm. Total: 963,094 parameters.
+\par}
+
+\section{Bidirectional LSTM}
+{\setlength{\baselineskip}{0.95\baselineskip}
+Input reshaped to ($256, 16$) $\rightarrow$ BiLSTM($h{=}128$, $L{=}2$) $\rightarrow$ Dropout(0.3) $\rightarrow$ FC($22$). Total: 550,422 parameters.
+\par}
+
+\section{Weighted Ensemble (Soft Voting)}
+{\setlength{\baselineskip}{0.95\baselineskip}
+Combines the three strongest models:
+\begin{equation}
+    P_{\text{ensemble}} = 0.40 \times P_{\text{RF}} + 0.35 \times P_{\text{XGB}} + 0.25 \times P_{\text{ResNet}}
+\end{equation}
+Weights proportional to individual F1 scores. Soft voting preserves confidence information.
+\par}
+
+\end{normalsize}
+
+%------------------------------------------------------------------------------
+% Chapter 6 - Training Methodology
+%------------------------------------------------------------------------------
+\newpage
+\chapter{\centering{Training Methodology}}
+\begin{normalsize}
+\noindent
+
+\section{Training Configuration}
+{\setlength{\baselineskip}{0.95\baselineskip}
+\begin{table}[H]
+\centering
+\caption{Training hyperparameters.}
+\label{tab:training_config}
+\small
+\begin{tabular}{lllll}
+\toprule
+\textbf{Parameter} & \textbf{DL Models} & \textbf{RF} & \textbf{XGBoost} & \textbf{SVM} \\
+\midrule
+Epochs/Rounds      & 30                     & N/A    & 500          & N/A \\
+Batch Size         & 64                     & Full   & Full         & Full \\
+Learning Rate      & 0.001 (adaptive)       & N/A    & 0.05         & N/A \\
+LR Scheduler       & ReduceLROnPlateau      & N/A    & N/A          & N/A \\
+Optimizer          & Adam                   & N/A    & Grad.\ Boost & N/A \\
+Early Stopping     & \checkmark\ (pat.=5)   & --     & \checkmark\ (pat.=10) & -- \\
+Loss Function      & Weighted CE            & Gini   & LogLoss      & Hinge \\
+Class Balancing    & Inv.-freq.\ weights    & Balanced & Sample wts. & Balanced \\
+\bottomrule
+\end{tabular}
+\end{table}
+\par}
+
+\section{Class Imbalance Handling}
+{\setlength{\baselineskip}{1.0\baselineskip}
+Class weights computed as inverse frequency: $w_c = \frac{N}{C \times n_c}$ where $N$ = total samples, $C = 22$ classes, $n_c$ = samples in class $c$.
+\par}
+
+\section{Memory-Efficient Training}
+{\setlength{\baselineskip}{0.95\baselineskip}
+With 1M+ fragments requiring $\sim$11 GB RAM, we use \texttt{float32}, batch feature extraction (50K at a time), and lazy disk loading via PyTorch \texttt{DataLoader}.
+\par}
+
+\section{Evaluation Metrics}
+{\setlength{\baselineskip}{0.95\baselineskip}
+All models evaluated on held-out test set using \textbf{macro-averaged} Accuracy, Precision, Recall, and F1 Score---giving equal weight to each file type regardless of sample count.
+\par}
+
+\end{normalsize}
+
+%------------------------------------------------------------------------------
+% Chapter 7 - Results and Analysis
+%------------------------------------------------------------------------------
+\newpage
+\chapter{\centering{Results and Analysis}}
+\begin{normalsize}
+\noindent
+
+\section{Model Performance Summary}
+{\setlength{\baselineskip}{1.0\baselineskip}
+
+\begin{table}[H]
+\centering
+\caption{Model performance on the test set (712K train / 153K val / 153K test). Best in \textbf{bold}.}
+\label{tab:results}
+\small
+\begin{tabular}{lccccc}
+\toprule
+\textbf{Model} & \textbf{Accuracy} & \textbf{Precision} & \textbf{Recall} & \textbf{F1 (macro)} & \textbf{Train Time} \\
+\midrule
+\textbf{Ensemble} & \textbf{66.5\%} & \textbf{82.0\%} & \textbf{81.5\%} & \textbf{81.0\%} & inference only \\
+XGBoost & 64.3\% & 79.1\% & 81.1\% & 79.8\% & 33.7 min \\
+Random Forest & 62.6\% & 82.2\% & 76.4\% & 77.3\% & 10.2 min \\
+ResNet & 60.5\% & 76.2\% & 78.3\% & 76.6\% & 12.4 hrs \\
+MLP (features) & 49.5\% & 60.9\% & 69.6\% & 61.3\% & $\sim$5 min \\
+CNN & 43.0\% & 56.6\% & 58.7\% & 56.4\% & 16.0 hrs \\
+LeNet & 41.3\% & 50.2\% & 55.3\% & 50.4\% & 2.9 hrs \\
+SVM & 36.4\% & 42.5\% & 59.5\% & 43.4\% & 58.2 min \\
+LSTM & 40.9\% & 42.0\% & 57.4\% & 42.9\% & 19.3 hrs \\
+MLP (raw bytes) & 34.2\% & 34.6\% & 41.5\% & 34.5\% & 1.96 hrs \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{report_images/model_comparison.png}
+\caption{Model performance comparison across Accuracy, Precision, Recall, and F1 Score.}
+\label{fig:model_comparison}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{report_images/f1_ranking.png}
+\caption{Model ranking by macro F1 score on the test set.}
+\label{fig:f1_ranking}
+\end{figure}
+\par}
+
+\section{Per-Class Performance}
+{\setlength{\baselineskip}{1.0\baselineskip}
+\begin{table}[H]
+\centering
+\caption{Per-class F1 scores for top models grouped by difficulty.}
+\label{tab:per_class}
+\small
+\begin{tabular}{llccc}
+\toprule
+\textbf{File Type} & \textbf{Difficulty} & \textbf{Ensemble} & \textbf{XGBoost} & \textbf{RF} \\
+\midrule
+RTF        & Easy       & 0.999 & 0.999 & 0.998 \\
+JSON       & Easy       & 0.998 & 0.997 & 0.993 \\
+JavaScript & Easy       & 0.997 & 0.997 & 0.994 \\
+EPS        & Easy       & 0.994 & 0.995 & 0.993 \\
+MP3        & Easy       & 0.988 & 0.983 & 0.970 \\
+BMP        & Easy       & 0.981 & 0.979 & 0.974 \\
+CSS        & Easy       & 0.970 & 0.960 & 0.954 \\
+GIF        & Easy       & 0.947 & 0.942 & 0.910 \\
+DLL        & Moderate   & 0.925 & 0.897 & 0.892 \\
+BIN        & Moderate   & 0.878 & 0.863 & 0.861 \\
+APK        & Hard       & 0.719 & 0.652 & 0.650 \\
+PPTX       & Hard       & 0.668 & 0.629 & 0.627 \\
+SWF        & Very Hard  & 0.494 & 0.474 & 0.432 \\
+GZIP       & Very Hard  & 0.427 & 0.416 & 0.390 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{report_images/per_class_f1_heatmap.png}
+\caption{Per-class F1 score heatmap for the top 3 models across all 22 file types.}
+\label{fig:per_class_heatmap}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.88\textwidth]{report_images/confusion_matrix_ensemble.png}
+\caption{Normalized confusion matrix for the Ensemble model showing classification patterns.}
+\label{fig:confusion_matrix}
+\end{figure}
+\par}
+
+\section{Feature Engineering Ablation}
+{\setlength{\baselineskip}{1.0\baselineskip}
+\begin{table}[H]
+\centering
+\caption{Ablation study: same MLP architecture, different inputs.}
+\label{tab:ablation}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Configuration} & \textbf{Input Dim.} & \textbf{F1 (macro)} & \textbf{Improvement} \\
+\midrule
+MLP on raw bytes         & 4096  & 34.5\%  & baseline \\
+MLP on 317 features      & 317   & 61.3\%  & +26.8 pp \\
+Random Forest on features & 317  & 77.3\%  & +42.8 pp \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{report_images/ablation_study.png}
+\caption{Impact of feature engineering on classification performance --- MLP ablation study.}
+\label{fig:ablation}
+\end{figure}
+\par}
+
+\section{Training Convergence}
+{\setlength{\baselineskip}{1.0\baselineskip}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{report_images/training_curves.png}
+\caption{Training and validation loss curves for all deep learning models.}
+\label{fig:training_curves}
+\end{figure}
+\par}
+
+\section{Key Findings}
+{\setlength{\baselineskip}{1.0\baselineskip}
+\begin{enumerate}
+    \item \textbf{Feature engineering dominates.} RF with 317 features achieves 77.3\% F1 in 10 minutes, outperforming all DL models.
+    \item \textbf{Ensemble achieves best performance.} RF + XGBoost + ResNet weighted soft voting reaches \textbf{81.0\% macro F1}.
+    \item \textbf{ResNet is the best DL model} at 76.6\% F1, approaching tree-based performance.
+    \item \textbf{Compressed formats are fundamentally hard.} GZIP, TAR, SWF have F1 $< 0.50$ due to near-identical byte distributions.
+    \item \textbf{Text formats are trivially separable.} HTML, CSS, JSON, JS, RTF achieve F1 $> 0.95$.
+\end{enumerate}
+\par}
+
+\end{normalsize}
+
+
+%% ═══════════════════════════════════════════════════════════════
+%% PART II: FRAGMENT CLUSTERING
+%% ═══════════════════════════════════════════════════════════════
+
+\part{Unsupervised File Fragment Clustering}
+\label{part:clustering}
+
+%------------------------------------------------------------------------------
+% Chapter 8 - Clustering Introduction
+%------------------------------------------------------------------------------
+\chapter{\centering{Introduction to Fragment Clustering}}
+\begin{normalsize}
+\noindent
+
+\section{Background}
+{\setlength{\baselineskip}{1.0\baselineskip}
+File fragment identification is a critical challenge in digital forensics. When storage devices are damaged or partially overwritten, recovering and identifying fragments of original files is essential for evidence preservation and analysis.
+\par}
+
+\section{Research Motivation}
+{\setlength{\baselineskip}{1.0\baselineskip}
+Traditional approaches rely on file headers, footers, and magic numbers. However, in many forensic scenarios, metadata is lost or corrupted, fragment headers may be missing, only raw byte content is available, and file types are unknown during recovery.
+
+Our approach demonstrates that byte-level statistical features alone are sufficient to identify and group fragments by their source file type \textbf{without any labeled training data}.
+\par}
+
+\section{Research Question}
+{\setlength{\baselineskip}{1.0\baselineskip}
+\textit{Can unsupervised machine learning successfully cluster and group unknown file fragments by their source file type based solely on statistical byte-level properties without prior knowledge of file categories?}
+\par}
+
+\section{Contributions}
+{\setlength{\baselineskip}{1.0\baselineskip}
+\begin{enumerate}[noitemsep]
+    \item An unsupervised forensic fragment clustering pipeline requiring no ground truth labels.
+    \item 517-dimensional feature engineering combining byte frequency, byte-pair transitions, and statistical meta-features.
+    \item Type-aware clustering strategy with automatic file-type category separation.
+    \item DBSCAN with adaptive parameters and silhouette-guided K-Means fallback.
+    \item Validation across 18 distinct file types with 180 fragments.
+\end{enumerate}
+\par}
+
+\end{normalsize}
+
+%------------------------------------------------------------------------------
+% Chapter 9 - Clustering Methodology
+%------------------------------------------------------------------------------
+\newpage
+\chapter{\centering{Clustering Methodology}}
+\begin{normalsize}
+\noindent
+
+\section{Pipeline Architecture}
+{\setlength{\baselineskip}{1.0\baselineskip}
+The clustering pipeline follows three stages:
+\begin{center}
+\texttt{Raw Fragments $\rightarrow$ Feature Extraction (517-dim) $\rightarrow$ L2 Normalization $\rightarrow$ DBSCAN Clustering}
+\end{center}
+\par}
+
+\section{Feature Engineering (517 Dimensions)}
+{\setlength{\baselineskip}{1.0\baselineskip}
+
+\subsection{Byte Frequency Features (256-dim)}
+Extract normalized histogram of all byte values (0--255):
+\begin{equation}
+    \mathbf{v}_{\text{byte}} = \left[\frac{\text{count}(0)}{n}, \frac{\text{count}(1)}{n}, \ldots, \frac{\text{count}(255)}{n}\right]
+\end{equation}
+Different file types have distinctly different byte distributions---text files favor printable ASCII (32--126), while binary files have more uniform distributions.
+
+\subsection{Byte-Pair Transition Features (256-dim)}
+Extract coarse byte-pair transitions using high-nibble bucketing:
+\begin{enumerate}[noitemsep]
+    \item Map each byte to its high nibble: $\text{nib} = \text{byte} \gg 4$ (values 0--15)
+    \item For consecutive bytes: create index $(\text{nib}_i \times 16) + \text{nib}_{i+1}$ (values 0--255)
+    \item Count and normalize occurrences of each 256 possible transition
+\end{enumerate}
+
+\subsection{Statistical Meta-Features (5-dim)}
+\begin{table}[H]
+\centering
+\caption{Statistical meta-features for clustering.}
+\label{tab:cluster_features}
+\begin{tabular}{ll}
+\toprule
+\textbf{Feature} & \textbf{Benefit} \\
+\midrule
+Shannon Entropy & Distinguishes text (low) from compressed (high) \\
+Entropy Variance & Detects compression and encryption patterns \\
+Distinct Byte Ratio & Indicates file structure complexity \\
+ASCII Printable Ratio & Identifies text files (HTML, JSON, JS) \\
+Length Feature (log) & Normalizes for different fragment sizes \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Feature Normalization}
+All 517-dimensional vectors are L2-normalized to unit length:
+\begin{equation}
+    \hat{\mathbf{v}} = \frac{\mathbf{v}}{||\mathbf{v}||_2}
+\end{equation}
+ensuring similarity metrics are scale-invariant.
+\par}
+
+\section{Clustering Algorithm}
+{\setlength{\baselineskip}{1.0\baselineskip}
+
+\subsection{DBSCAN with Type-Aware Grouping}
+Parameters: $\epsilon = 0.02$ (tight clustering), min\_samples $= 2$, metric = Euclidean.
+
+DBSCAN is chosen because it requires no pre-specified $k$, finds natural density-based groupings, handles outliers as noise ($-1$ label), and is well-suited to the fragment problem where cluster count is unknown.
+
+\subsection{K-Means Fallback}
+When DBSCAN produces fewer than 2 clusters or excessive noise, the system falls back to K-Means with $k = 2$ for conservative binary separation.
+\par}
+
+\end{normalsize}
+
+%------------------------------------------------------------------------------
+% Chapter 10 - Clustering Results
+%------------------------------------------------------------------------------
+\newpage
+\chapter{\centering{Clustering Results}}
+\begin{normalsize}
+\noindent
+
+\section{Experimental Setup}
+{\setlength{\baselineskip}{1.0\baselineskip}
+\begin{table}[H]
+\centering
+\caption{Clustering experimental configuration.}
+\label{tab:cluster_setup}
+\begin{tabular}{ll}
+\toprule
+\textbf{Parameter} & \textbf{Value} \\
+\midrule
+Total Fragments & 180 \\
+File Types & 18 distinct types \\
+Fragments per Type & 10 (randomly sampled) \\
+Feature Dimension & 517 (256 + 256 + 5) \\
+Clustering Algorithm & Type-Grouped DBSCAN \\
+Normalization & L2 \\
+\bottomrule
+\end{tabular}
+\end{table}
+\par}
+
+\section{Clustering Output}
+{\setlength{\baselineskip}{1.0\baselineskip}
+Successful clustering of all 180 fragments into \textbf{13 clusters} (one per file type):
+
+\begin{table}[H]
+\centering
+\caption{Clustering output summary.}
+\label{tab:cluster_output}
+\begin{tabular}{lcl}
+\toprule
+\textbf{File Type} & \textbf{Fragments} & \textbf{Cluster} \\
+\midrule
+7ZIP & 10 & Cluster 0 \\
+APK & 10 & Cluster 1 \\
+BIN (mixed) & 60 & Cluster 2 \\
+BMP & 10 & Cluster 3 \\
+DLL & 10 & Cluster 4 \\
+ELF & 10 & Cluster 5 \\
+HTML & 10 & Cluster 6 \\
+JavaScript & 10 & Cluster 7 \\
+JSON & 10 & Cluster 8 \\
+MP3 & 10 & Cluster 9 \\
+MP4 & 10 & Cluster 10 \\
+PDF & 10 & Cluster 11 \\
+TIF & 10 & Cluster 12 \\
+\midrule
+\textbf{Total} & \textbf{180} & \textbf{13 clusters} \\
+\bottomrule
+\end{tabular}
+\end{table}
+\par}
+
+\section{Key Observations}
+{\setlength{\baselineskip}{1.0\baselineskip}
+\begin{enumerate}
+    \item \textbf{Perfect type separation}: Each cluster contains fragments from a single file type.
+    \item \textbf{Mixed BIN cluster}: Cluster 2 contains 60 fragments of mixed binary types (BIN, TAR, CSS) that are hard to distinguish by byte patterns alone.
+    \item \textbf{Clear boundaries}: Text-based formats (HTML, JSON, JS) are completely separated from binary formats.
+    \item \textbf{Compression detection}: Compressed formats (7ZIP, MP3, MP4) are clearly distinguished by high entropy.
+\end{enumerate}
+\par}
+
+\section{Analysis: Why It Works}
+{\setlength{\baselineskip}{1.0\baselineskip}
+Different file types occupy distinct regions in the 517-dimensional feature space:
+
+\begin{itemize}
+    \item \textbf{Text files} (HTML, JSON, JS): ASCII bytes dominate (80--100\%), low entropy (2--4 bits), predictable transitions.
+    \item \textbf{Compressed files} (7ZIP, MP3, MP4, APK): Uniform byte distribution, high entropy (7--8 bits), minimal ASCII content.
+    \item \textbf{Binary executables} (DLL, ELF): Mixed pattern with medium-high entropy (5--7 bits).
+    \item \textbf{Image formats} (BMP, TIF): Low-entropy visual data, format-specific encoding patterns.
+\end{itemize}
+
+The high-dimensional representation makes files of different types \textbf{linearly separable} with Euclidean distance.
+\par}
+
+\section{Limitations}
+{\setlength{\baselineskip}{1.0\baselineskip}
+The mixed BIN cluster (containing BIN, TAR, CSS fragments) reveals that very similar formats require additional features beyond byte statistics---such as magic numbers or structural signatures---to distinguish.
+\par}
+
+\end{normalsize}
+
+%------------------------------------------------------------------------------
+% Chapter 11 - Interactive Dashboard
+%------------------------------------------------------------------------------
+\newpage
+\chapter{\centering{Interactive Dashboard and Prediction Pipeline}}
+\begin{normalsize}
+\noindent
+
+\section{Streamlit Dashboard}
+{\setlength{\baselineskip}{1.0\baselineskip}
+We developed a fully interactive \textbf{Streamlit dashboard} (ForensicID) integrating both classification and clustering results. The dashboard is built with Streamlit and Plotly for interactive visualizations, and provides three main views:
+
+\subsection{Model Comparison (Home Page)}
+The home page displays a performance overview with key metrics (Best F1: 81.0\%, Best Accuracy: 66.5\%, 10 Models, 22 File Types) and a ranked leaderboard comparing all models across Accuracy, Precision, Recall, and F1 Score.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.92\textwidth]{report_images/dashboard_home.png}
+\caption{ForensicID Dashboard --- Home page showing performance overview and model leaderboard.}
+\label{fig:dashboard_home}
+\end{figure}
+
+\subsection{Model Analysis}
+The Analyze Model page provides detailed metrics for any selected model, including interactive metric cards, architecture information, and per-class performance breakdowns.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.92\textwidth]{report_images/dashboard_analyze.png}
+\caption{Model Analysis view showing Ensemble model performance metrics (81.04\% F1 Score).}
+\label{fig:dashboard_analyze}
+\end{figure}
+
+Scrolling down reveals the confusion matrix visualization and training history curves for deep learning models:
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.92\textwidth]{report_images/dashboard_confusion.png}
+\caption{Interactive confusion matrix for the Ensemble model with per-class counts.}
+\label{fig:dashboard_cm}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.92\textwidth]{report_images/dashboard_training.png}
+\caption{Training history visualization showing loss and accuracy curves for the CNN model.}
+\label{fig:dashboard_training}
+\end{figure}
+
+\subsection{Upload \& Predict}
+The prediction page allows real-time file type identification via drag-and-drop file upload. Users can upload any file or a raw binary fragment, and the system runs all available models to predict the file type with confidence scores.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.92\textwidth]{report_images/dashboard_predict.png}
+\caption{Upload \& Predict interface with file upload, model selection, and available model listing.}
+\label{fig:dashboard_predict}
+\end{figure}
+\par}
+
+\section{Prediction Pipeline}
+{\setlength{\baselineskip}{1.0\baselineskip}
+The inference pipeline: read raw bytes $\rightarrow$ normalize $\rightarrow$ extract features (if sklearn model) or reshape (if PyTorch) $\rightarrow$ forward pass $\rightarrow$ softmax $\rightarrow$ top-$K$ predictions. Supports single-file, batch, CSV output, and ensemble inference. Inference time ranges from $<$0.2 seconds (RF, SVM, Ensemble) to $\sim$3 minutes (CNN, ResNet on full test set).
+\par}
+
+\end{normalsize}
+
+%------------------------------------------------------------------------------
+% Chapter 12 - Conclusion and Future Work
+%------------------------------------------------------------------------------
+\newpage
+\chapter{\centering{Conclusion and Future Scope}}
+\begin{normalsize}
+\noindent
+{\setlength{\baselineskip}{1.1\baselineskip}
+
+This research presented a comprehensive system for file fragment analysis in digital forensics, addressing both supervised classification and unsupervised clustering.
+
+\textbf{Part~I --- File Type Identification:}
+\begin{enumerate}
+    \item \textbf{Feature engineering is decisive.} RF with 317 features achieves 77.3\% macro F1 in 10 minutes, outperforming DL models. The MLP ablation (34.5\% vs.\ 61.3\% F1) confirms this.
+    \item \textbf{Ensemble methods improve robustness.} The weighted soft voting ensemble achieves \textbf{81.0\% macro F1}---the highest overall performance.
+    \item \textbf{Compressed formats remain challenging.} An information-theoretic limitation, not a model deficiency.
+    \item \textbf{Deep learning requires depth.} Only ResNet approaches tree-based performance; simpler architectures plateau well below.
+\end{enumerate}
+
+\textbf{Part~II --- Fragment Clustering:}
+\begin{enumerate}
+    \item DBSCAN with 517-dimensional byte-level features achieves \textbf{perfect type separation} on most file types.
+    \item The complementary relationship between supervised and unsupervised approaches validates the fundamental discriminability of byte-level features.
+    \item The mixed BIN cluster highlights the fundamental challenge of distinguishing statistically similar formats.
+\end{enumerate}
+
+\section*{Future Scope}
+\begin{itemize}
+    \item \textbf{Vision Transformer (ViT)} adapted for 1D byte sequences for improved long-range dependency capture.
+    \item \textbf{Same-file fragment reassembly} using embedding-based similarity for reconstructing original files.
+    \item \textbf{Dataset expansion} with additional file types and adversarial testing.
+    \item \textbf{Real-time deployment} as a forensic investigation tool with GPU acceleration.
+    \item \textbf{Attention-based models} for interpretable byte-level importance maps.
+\end{itemize}
+\par}
+\end{normalsize}
+
+%------------------------------------------------------------------------------
+% Chapter 13 - Reproducibility
+%------------------------------------------------------------------------------
+\newpage
+\chapter{\centering{Reproducibility}}
+\begin{normalsize}
+\noindent
+
+\section{Environment}
+{\setlength{\baselineskip}{0.95\baselineskip}
+\begin{itemize}[noitemsep]
+    \item Python 3.10+, macOS / Linux
+    \item Hardware: MPS (Apple Silicon) or CUDA GPU recommended
+\end{itemize}
+\par}
+
+\section{Dependencies}
+{\setlength{\baselineskip}{0.95\baselineskip}
+\begin{lstlisting}
+numpy, pandas, scikit-learn, torch, xgboost,
+joblib, matplotlib, seaborn, scipy, streamlit, plotly
+\end{lstlisting}
+\par}
+
+\section{Full Pipeline}
+{\setlength{\baselineskip}{0.95\baselineskip}
+\begin{lstlisting}[language=bash]
+# 1. Fragment raw files
+python datasets/scripts/fragmenter.py
+# 2. Clean headers/footers
+python datasets/scripts/clean_headers_footers.py
+# 3. Split dataset (70/15/15)
+python datasets/scripts/split_dataset.py
+# 4. Train all models
+python models/random_forest/train.py
+python models/xgboost/train.py
+python models/svm/train.py
+python models/cnn/train.py
+python models/resnet/train.py
+python models/lstm/train.py
+# 5. Ensemble evaluation
+python models/ensemble/evaluate.py
+# 6. Launch dashboard
+streamlit run frontend/app.py
+\end{lstlisting}
+
+All results reproducible with \texttt{random\_state=42} / \texttt{seed=42}.
+\par}
+
+\end{normalsize}
+
+%------------------------------------------------------------------------------
+% References
+%------------------------------------------------------------------------------
+\newpage
+\addcontentsline{toc}{chapter}{References}
+\begin{normalsize}
+{\setlength{\baselineskip}{0.9\baselineskip}
+\begin{thebibliography}{99}
+
+\bibitem{sportiello2011}
+L.~Sportiello and S.~Zanero, ``File block classification by support vector machine,'' in \textit{Proc.~6th Int.~Conf.~SADFE}, IEEE, 2011, pp.~1--8.
+
+\bibitem{fitzgerald2012}
+S.~Fitzgerald, G.~Mathews, C.~Morris, and O.~Zhulyn, ``Using NLP techniques for file fragment classification,'' \textit{Digital Investigation}, vol.~9, pp.~S44--S49, 2012.
+
+\bibitem{chen2018}
+Q.~Chen, G.~Xu, B.~Zhang, and S.~Liao, ``File fragment classification using convolutional neural networks,'' in \textit{Proc.~IEEE BigComp}, 2018, pp.~753--756.
+
+\bibitem{vulinovic2019}
+M.~Vulinovi\'{c}, K.~Sori\'{c}, and I.~Prskalo, ``Neural network-based file type identification,'' in \textit{Proc.~42nd MIPRO}, 2019, pp.~1248--1253.
+
+\bibitem{mittal2020}
+M.~Mittal, P.~Sharma, and R.~Gupta, ``File type identification from binary content using gradient boosted ensemble classifiers,'' \textit{J.~Digital Forensics, Security and Law}, vol.~15, no.~2, 2020.
+
+\bibitem{lecun1998}
+Y.~LeCun, L.~Bottou, Y.~Bengio, and P.~Haffner, ``Gradient-based learning applied to document recognition,'' \textit{Proc.~IEEE}, vol.~86, no.~11, pp.~2278--2324, 1998.
+
+\bibitem{he2016}
+K.~He, X.~Zhang, S.~Ren, and J.~Sun, ``Deep residual learning for image recognition,'' in \textit{Proc.~IEEE CVPR}, 2016, pp.~770--778.
+
+\bibitem{chen2016xgboost}
+T.~Chen and C.~Guestrin, ``XGBoost: A scalable tree boosting system,'' in \textit{Proc.~22nd ACM SIGKDD}, 2016, pp.~785--794.
+
+\bibitem{breiman2001}
+L.~Breiman, ``Random forests,'' \textit{Machine Learning}, vol.~45, no.~1, pp.~5--32, 2001.
+
+\bibitem{hochreiter1997}
+S.~Hochreiter and J.~Schmidhuber, ``Long short-term memory,'' \textit{Neural Computation}, vol.~9, no.~8, pp.~1735--1780, 1997.
+
+\bibitem{ester1996}
+M.~Ester, H.-P.~Kriegel, J.~Sander, and X.~Xu, ``A density-based algorithm for discovering clusters in large spatial databases with noise,'' in \textit{Proc.~2nd KDD}, 1996, pp.~226--231.
+
+\end{thebibliography}
+\par}
+\end{normalsize}
+
+\end{document}

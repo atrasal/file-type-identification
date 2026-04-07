@@ -81,7 +81,7 @@ def main():
     # Train model
     print(f"\n🚀 Training Random Forest on {n_train} samples ({X_train_feat.shape[1]} features)...")
     start_time = time.time()
-    model = RandomForestClassifier(n_estimators=100, class_weight='balanced', random_state=42, n_jobs=-1)
+    model = RandomForestClassifier(n_estimators=300, class_weight='balanced', random_state=42, n_jobs=-1)
     model.fit(X_train_feat, y_train)
     train_time = time.time() - start_time
 

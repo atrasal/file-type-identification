@@ -93,30 +93,46 @@ python datasets/scripts/split_dataset.py
 ### 4. Train Models
 
 ```bash
-# Traditional ML (use batch feature extraction + 317 engineered features)
-python models/random_forest/train.py
-python models/xgboost/train.py
-python models/svm/train.py
+# Traditional ML (317 engineered features)
+python models/random_forest/train.py     # ~10 min, 300 trees
+python models/xgboost/train.py           # ~34 min, 500 trees
+python models/svm/train.py               # ~58 min, LinearSVC balanced
 
-# Deep Learning (class-weighted loss + LR scheduling, 30 epochs)
-python models/mlp/train.py
-python models/lenet/train.py
-python models/cnn/train.py
-python models/resnet/train.py
-python models/lstm/train.py
+# Deep Learning — raw bytes (class-weighted loss + LR scheduling + gradient clipping)
+python models/mlp/train.py               # ~50 min, 4096-dim raw input
+python models/lenet/train.py             # ~2.8 hrs
+python models/cnn/train.py               # ~8 hrs
+python models/resnet/train.py            # ~20 hrs
+python models/lstm/train.py              # ~19 hrs.......
+
+# Deep Learning — engineered features
+python models/mlp_features/train.py      # ~5 min, 317-dim features + BatchNorm
 ```
 
 > **Note:** Run models one at a time to avoid out-of-memory issues on 16 GB machines.
 
 Models are saved to `saved_models/` and metrics to `results/`.
 
-### 5. Generate Comparison Graphs
+### 5. Ensemble Evaluation
+
+```bash
+# Requires RF + XGBoost + ResNet to be trained first
+python models/ensemble/evaluate.py
+```
+
+### 6. Generate Comparison Graphs
 
 ```bash
 python generate_graphs.py
 ```
 
-### 6. Predict
+### 7. Launch Dashboard
+
+```bash
+streamlit run frontend/app.py
+```
+
+### 8. Predict
 
 ```bash
 # Put .bin fragment files in predict_input/ folder, then:
@@ -125,6 +141,9 @@ python predict.py predict_input/ --model rf
 # Or predict a single file:
 python predict.py path/to/fragment.bin --model rf
 
+# Use ensemble (requires RF + XGBoost + ResNet):
+python predict.py predict_input/ --model ensemble
+
 # Compare all models:
 python predict.py predict_input/ --model all
 
@@ -132,16 +151,18 @@ python predict.py predict_input/ --model all
 python predict.py predict_input/ --model rf --save-csv
 ```
 
-**Available models:** `rf`, `xgboost`, `svm`, `cnn`, `resnet`, `mlp`, `lenet`, `lstm`, `all`
+**Available models:** `rf`, `xgboost`, `svm`, `cnn`, `resnet`, `mlp`, `mlp_features`, `lenet`, `lstm`, `ensemble`, `all`
 
 ## Models
 
 | Model | Type | Input | Class Balancing | Framework |
 |---|---|---|---|---|
-| Random Forest | Ensemble (100 trees) | 317 engineered features | `class_weight='balanced'` | scikit-learn |
-| XGBoost | Gradient Boosting | 317 engineered features | Inverse-frequency sample weights | xgboost |
-| SVM | Linear SVC + Calibration | 317 engineered features | — | scikit-learn |
-| MLP | Fully Connected (512→256→128) | Raw bytes (4096) | Weighted CrossEntropyLoss | PyTorch |
+| **Ensemble** | **Weighted Soft Voting (RF+XGB+ResNet)** | **Combined probabilities** | **Inherited** | **Multi-framework** |
+| Random Forest | Ensemble (300 trees) | 317 engineered features | `class_weight='balanced'` | scikit-learn |
+| XGBoost | Gradient Boosting (500 trees) | 317 engineered features | Inverse-frequency sample weights | xgboost |
+| SVM | Linear SVC | 317 engineered features | `class_weight='balanced'` | scikit-learn |
+| MLP (features) | FC + BatchNorm (512→256→128) | 317 engineered features | Weighted CrossEntropyLoss | PyTorch |
+| MLP (raw bytes) | Fully Connected (512→256→128) | Raw bytes (4096) | Weighted CrossEntropyLoss | PyTorch |
 | LeNet-1D | Classic CNN (2 conv + 3 FC) | Raw bytes (4096) | Weighted CrossEntropyLoss | PyTorch |
 | CNN | 1D Convolutional (2 conv layers) | Raw bytes (4096) | Weighted CrossEntropyLoss | PyTorch |
 | ResNet | 1D Residual Network (6 conv layers) | Raw bytes (4096) | Weighted CrossEntropyLoss | PyTorch |
@@ -151,6 +172,7 @@ python predict.py predict_input/ --model rf --save-csv
 
 - **Class-weighted loss**: All models account for class imbalance (22 classes with up to 222:1 sample ratio)
 - **LR scheduling**: DL models use `ReduceLROnPlateau` (halves LR after 2 stale epochs)
+- **Gradient clipping**: DL models use `clip_grad_norm_(max_norm=1.0)` for training stability
 - **Extended training**: 30 epochs with patience 5 (up from 15/3) for DL models
 - **317 engineered features**: Byte histograms, entropy, bigrams, trigrams, block entropy, compression ratio, chi-squared test, and more
 
@@ -160,16 +182,18 @@ Trained on **22 file types** with **~1M total fragments** (712K train / 153K val
 
 | Model | Accuracy | Precision | Recall | F1 (macro) | Train Time |
 |---|---|---|---|---|---|
-| **Random Forest** | **62.0%** | **81.1%** | 76.2% | **77.1%** | 3 min |
-| **XGBoost** | 59.6% | 72.7% | **79.1%** | 74.8% | 5 min |
+| **Ensemble (RF+XGB+ResNet)** | **—** | **—** | **—** | **—** | **inference only** |
+| **XGBoost** | **64.3%** | 79.1% | **81.1%** | **79.8%** | 33.7 min |
+| **Random Forest** | 62.6% | **82.2%** | 76.4% | 77.3% | 10.2 min |
 | **ResNet** | 58.5% | 74.9% | 77.8% | 75.4% | 20.7 hrs |
+| MLP (features) | — | — | — | — | ~5 min |
 | CNN | 42.8% | 52.5% | 59.6% | 54.0% | 8.0 hrs |
 | LeNet | 42.8% | 49.0% | 58.6% | 51.9% | 2.8 hrs |
-| SVM | 42.2% | 61.8% | 47.6% | 46.6% | 1.2 hrs |
+| SVM | 36.4% | 42.5% | 59.5% | 43.4% | 58.2 min |
 | LSTM | 40.9% | 42.0% | 57.4% | 42.9% | 19.3 hrs |
-| MLP | 3.0% | 14.9% | 10.5% | 6.1% | 1.1 hrs |
+| MLP (raw bytes) | 2.8% | 13.7% | 12.4% | 6.5% | 49.9 min |
 
-> **Best model:** Random Forest with 317 engineered features achieves 77.1% macro F1. Text-based formats (HTML, CSS, JSON) are classified near-perfectly (F1 > 0.96), while compressed archives (gzip, tar, swf) remain challenging (F1 < 0.43) due to near-identical byte distributions.
+> **Best single model:** XGBoost with 500 boosted trees achieves **79.8% macro F1** on 317 engineered features in just 34 minutes. Random Forest follows closely at 77.3% F1. Text-based formats (HTML, CSS, JSON) are classified near-perfectly (F1 > 0.96), while compressed archives (gzip, tar, swf) remain challenging (F1 < 0.43) due to near-identical byte distributions. The weighted ensemble of RF + XGBoost + ResNet is expected to surpass both. MLP (raw bytes) is included as an intentional ablation baseline demonstrating the critical importance of feature engineering.
 
 ## Data Pipeline
 

@@ -15,6 +15,8 @@ Usage:
   python predict.py predict_input/ --model cnn
   python predict.py predict_input/ --model xgboost
   python predict.py predict_input/ --model resnet
+  python predict.py predict_input/ --model mlp_features
+  python predict.py predict_input/ --model ensemble
   python predict.py predict_input/ --model all
 """
 
@@ -54,9 +56,14 @@ MODELS = {
         'type': 'torch',
     },
     'mlp': {
-        'name': 'MLP',
+        'name': 'MLP (raw bytes)',
         'path': 'saved_models/mlp/mlp_model.pth',
         'type': 'torch',
+    },
+    'mlp_features': {
+        'name': 'MLP (features)',
+        'path': 'saved_models/mlp_features/mlp_features_model.pth',
+        'type': 'torch_features',
     },
     'lenet': {
         'name': 'LeNet',
@@ -67,6 +74,13 @@ MODELS = {
         'name': 'LSTM',
         'path': 'saved_models/lstm/lstm_model.pth',
         'type': 'torch',
+    },
+    'ensemble': {
+        'name': 'Ensemble (RF+XGB+ResNet)',
+        'path': None,  # Ensemble uses component models
+        'type': 'ensemble',
+        'components': ['rf', 'xgboost', 'resnet'],
+        'weights': {'rf': 0.40, 'xgboost': 0.35, 'resnet': 0.25},
     },
 }
 
@@ -181,17 +195,123 @@ def predict_torch(model_path, fragments, model_type):
     return results
 
 
+def predict_torch_features(model_path, fragments, model_type):
+    """Predict using a PyTorch model that takes engineered features."""
+    import torch
+    import json
+    from utils.feature_engineering import extract_features_batch
+
+    results_path = f'results/{model_type}_results.json'
+    if not os.path.exists(results_path):
+        return [(None, None)] * len(fragments)
+
+    with open(results_path) as f:
+        res = json.load(f)
+    if 'dataset_info' in res and 'classes' in res['dataset_info']:
+        class_names = res['dataset_info']['classes']
+    elif 'classes' in res:
+        class_names = res['classes']
+    else:
+        print(f"  ❌ No class names found in {results_path}")
+        return [(None, None)] * len(fragments)
+    num_classes = len(class_names)
+
+    from models.mlp_features.train import FeatureMLP
+    model = FeatureMLP(317, num_classes)
+    model.load_state_dict(torch.load(model_path, map_location='cpu', weights_only=True))
+    model.eval()
+
+    # Extract features from normalized byte arrays
+    X_features = extract_features_batch(np.array(fragments))
+    X = torch.FloatTensor(X_features)
+
+    results = []
+    with torch.no_grad():
+        outputs = model(X)
+        probs_all = torch.softmax(outputs, dim=1).numpy()
+        for i in range(len(fragments)):
+            pred_idx = np.argmax(probs_all[i])
+            pred_label = class_names[pred_idx]
+            probs = sorted(zip(class_names, probs_all[i]),
+                           key=lambda x: x[1], reverse=True)
+            results.append((pred_label, probs))
+
+    return results
+
+
+def predict_ensemble(fragments, filenames):
+    """Predict using weighted ensemble of RF + XGBoost + ResNet."""
+    import json
+
+    ensemble_info = MODELS['ensemble']
+    components = ensemble_info['components']
+    weights = ensemble_info['weights']
+
+    # Check all component models exist
+    for comp_key in components:
+        comp = MODELS[comp_key]
+        if comp['path'] and not os.path.exists(comp['path']):
+            print(f"  ❌ Ensemble component {comp['name']} not found at {comp['path']}")
+            return None
+
+    # Get predictions from each component
+    component_results = {}
+    for comp_key in components:
+        comp = MODELS[comp_key]
+        if comp['type'] == 'sklearn':
+            results = predict_sklearn(comp['path'], fragments)
+        else:
+            results = predict_torch(comp['path'], fragments, comp_key)
+        component_results[comp_key] = results
+
+    # Combine probabilities
+    # Get class names from first component with probabilities
+    class_names = None
+    for comp_key, results in component_results.items():
+        if results and results[0][1]:
+            class_names = [label for label, _ in results[0][1]]
+            break
+
+    if class_names is None:
+        print("  ❌ Could not get class names from component models")
+        return None
+
+    ensemble_results = []
+    for i in range(len(fragments)):
+        # Build probability arrays for each component
+        combined_probs = np.zeros(len(class_names))
+        for comp_key in components:
+            comp_results = component_results[comp_key]
+            if comp_results[i][1]:  # has probability info
+                prob_dict = {label: prob for label, prob in comp_results[i][1]}
+                for j, cls in enumerate(class_names):
+                    combined_probs[j] += weights[comp_key] * prob_dict.get(cls, 0.0)
+
+        pred_idx = np.argmax(combined_probs)
+        pred_label = class_names[pred_idx]
+        probs = sorted(zip(class_names, combined_probs),
+                       key=lambda x: x[1], reverse=True)
+        ensemble_results.append((pred_label, probs))
+
+    return ensemble_results
+
+
 def run_batch_prediction(model_key, fragments, filenames):
     """Run prediction for a batch of fragments with a specific model."""
     info = MODELS[model_key]
 
-    if not os.path.exists(info['path']):
+    if info['type'] == 'ensemble':
+        return predict_ensemble(fragments, filenames)
+
+    if info['path'] and not os.path.exists(info['path']):
         print(f"  ❌ {info['name']}: model not found at {info['path']}")
         print(f"     Train it first with: python models/{model_key.replace('rf','random_forest')}/train.py")
         return None
 
     if info['type'] == 'sklearn':
         return predict_sklearn(info['path'], fragments)
+    elif info['type'] == 'torch_features':
+        return predict_torch_features(info['path'], fragments, model_key)
     else:
         return predict_torch(info['path'], fragments, model_key)
 
@@ -233,7 +353,7 @@ def main():
     parser.add_argument('input', nargs='?', default=DEFAULT_INPUT_FOLDER,
                         help=f'Path to a .bin file or folder of .bin files (default: {DEFAULT_INPUT_FOLDER}/)')
     parser.add_argument('--model', default='rf',
-                        choices=['rf', 'xgboost', 'svm', 'cnn', 'resnet', 'mlp', 'lenet', 'lstm', 'all'],
+                        choices=['rf', 'xgboost', 'svm', 'cnn', 'resnet', 'mlp', 'mlp_features', 'lenet', 'lstm', 'ensemble', 'all'],
                         help='Model to use for prediction (default: rf)')
     parser.add_argument('--top', type=int, default=3,
                         help='Number of top predictions to show (default: 3)')

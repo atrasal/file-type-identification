@@ -269,6 +269,9 @@ def extract_features(file_bytes):
     else:
         fragment = fragment[:4096]
     
+    # Normalize to [0, 1] to match training pipeline
+    fragment = fragment.astype(np.float32) / 255.0
+    
     features = np.concatenate([
         byte_frequency_histogram(fragment),
         [shannon_entropy(fragment)],

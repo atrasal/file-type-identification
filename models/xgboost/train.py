@@ -87,9 +87,9 @@ def main():
     print(f"\n🚀 Training XGBoost on {n_train} samples ({X_train_feat.shape[1]} features)...")
     start_time = time.time()
     model = XGBClassifier(
-        n_estimators=100,
-        max_depth=6,
-        learning_rate=0.1,
+        n_estimators=500,
+        max_depth=8,
+        learning_rate=0.05,
         random_state=42,
         n_jobs=-1,
         use_label_encoder=False,

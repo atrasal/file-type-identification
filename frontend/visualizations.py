@@ -276,13 +276,17 @@ def plot_confidence_comparison(df_predictions):
     """Bar chart of prediction confidence across models"""
     fig = go.Figure()
     
+    conf_col = 'Confidence Score' if 'Confidence Score' in df_predictions.columns else 'Confidence'
+    text_col = 'Confidence' if 'Confidence' in df_predictions.columns else None
+    text_vals = df_predictions[text_col] if text_col and df_predictions[text_col].dtype == object else [f"{v:.1%}" for v in df_predictions[conf_col]]
+    
     fig.add_trace(go.Bar(
         x=df_predictions['Model'],
-        y=df_predictions['Confidence Score'],
-        text=df_predictions['Confidence'],
+        y=df_predictions[conf_col],
+        text=text_vals,
         textposition='auto',
         marker=dict(
-            color=df_predictions['Confidence Score'],
+            color=df_predictions[conf_col],
             colorscale='RdYlGn',
             showscale=True,
             colorbar=dict(title="Confidence")

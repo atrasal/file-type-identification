@@ -22,12 +22,23 @@ def load_models():
     models = {}
     labels = None
     
-    # Load per_class_metrics from results to get labels
-    try:
-        cnn_results = json.loads((RESULTS_DIR / "cnn_results.json").read_text())
-        labels = sorted(cnn_results.get("per_class_metrics", {}).keys())
-    except:
-        pass
+    # Load per_class_metrics from results to get labels — try multiple files
+    label_sources = [
+        "random_forest_results.json", "xgboost_results.json", "cnn_results.json",
+        "resnet_results.json", "svm_results.json", "lenet_results.json",
+        "lstm_results.json", "mlp_results.json", "mlp_features_results.json",
+    ]
+    for source in label_sources:
+        try:
+            results_data = json.loads((RESULTS_DIR / source).read_text())
+            if "per_class_metrics" in results_data:
+                labels = sorted(results_data["per_class_metrics"].keys())
+                break
+            elif "dataset_info" in results_data and "classes" in results_data["dataset_info"]:
+                labels = sorted(results_data["dataset_info"]["classes"])
+                break
+        except:
+            continue
     
     if not labels:
         labels = []
@@ -116,16 +127,25 @@ def load_models():
                     self.seq_len = input_size // seq_step
                     self.feature_dim = seq_step
                     self.lstm = torch.nn.LSTM(
-                        self.feature_dim, hidden_size, num_layers,
-                        batch_first=True, bidirectional=True, dropout=0.3 if num_layers > 1 else 0
+                        input_size=self.feature_dim,
+                        hidden_size=hidden_size,
+                        num_layers=num_layers,
+                        batch_first=True,
+                        bidirectional=True,
+                        dropout=0.3,
                     )
+                    self.dropout = torch.nn.Dropout(0.3)
                     self.fc = torch.nn.Linear(hidden_size * 2, num_classes)
                 
                 def forward(self, x):
-                    batch_size = x.size(0)
-                    x = x.view(batch_size, self.seq_len, self.feature_dim)
-                    out, (h, c) = self.lstm(x)
-                    out = out[:, -1, :]
+                    x = x.squeeze(1)  # (batch, chunk_size)
+                    x = x.view(x.size(0), self.seq_len, self.feature_dim)
+                    lstm_out, (h_n, _) = self.lstm(x)
+                    # Use final hidden states from both directions (matches training)
+                    forward_final = h_n[-2]
+                    backward_final = h_n[-1]
+                    combined = torch.cat([forward_final, backward_final], dim=1)
+                    out = self.dropout(combined)
                     out = self.fc(out)
                     return out
             
@@ -201,7 +221,7 @@ def load_models():
     
     # ==================== Random Forest (Sklearn) ====================
     try:
-        rf_path = SAVED_MODELS_DIR / "random_forest" / "random_forest_model.joblib"
+        rf_path = SAVED_MODELS_DIR / "random_forest" / "rf_model.joblib"
         if rf_path.exists():
             loaded = joblib.load(rf_path)
             model = loaded.get('model', loaded) if isinstance(loaded, dict) else loaded
@@ -228,39 +248,36 @@ def load_models():
     try:
         mlp_path = SAVED_MODELS_DIR / "mlp" / "mlp_model.pth"
         if mlp_path.exists():
-            class MLPClassifier(torch.nn.Module):
+            class FragmentMLP(torch.nn.Module):
+                """Must match models/mlp/train.py exactly."""
                 def __init__(self, input_size, num_classes):
                     super().__init__()
-                    self.fc1 = torch.nn.Linear(input_size, 512)
-                    self.dropout1 = torch.nn.Dropout(0.3)
-                    self.fc2 = torch.nn.Linear(512, 256)
-                    self.dropout2 = torch.nn.Dropout(0.3)
-                    self.fc3 = torch.nn.Linear(256, 128)
-                    self.dropout3 = torch.nn.Dropout(0.3)
-                    self.fc4 = torch.nn.Linear(128, num_classes)
+                    self.net = torch.nn.Sequential(
+                        torch.nn.Linear(input_size, 512),
+                        torch.nn.BatchNorm1d(512),
+                        torch.nn.ReLU(),
+                        torch.nn.Dropout(0.2),
+                        torch.nn.Linear(512, 256),
+                        torch.nn.BatchNorm1d(256),
+                        torch.nn.ReLU(),
+                        torch.nn.Dropout(0.2),
+                        torch.nn.Linear(256, 128),
+                        torch.nn.BatchNorm1d(128),
+                        torch.nn.ReLU(),
+                        torch.nn.Dropout(0.1),
+                        torch.nn.Linear(128, num_classes),
+                    )
                 
                 def forward(self, x):
-                    if len(x.shape) > 2:
-                        x = x.view(x.shape[0], -1)
-                    x = torch.relu(self.fc1(x))
-                    x = self.dropout1(x)
-                    x = torch.relu(self.fc2(x))
-                    x = self.dropout2(x)
-                    x = torch.relu(self.fc3(x))
-                    x = self.dropout3(x)
-                    x = self.fc4(x)
-                    return x
+                    # x shape: (batch, 1, chunk_size) from unsqueeze
+                    x = x.squeeze(1)  # (batch, chunk_size)
+                    return self.net(x)
             
-            model = MLPClassifier(317, num_classes)
+            model = FragmentMLP(chunk_size, num_classes)
             checkpoint = torch.load(mlp_path, map_location="cpu")
-            
-            if isinstance(checkpoint, dict) and 'fc1.weight' in checkpoint:
-                model.load_state_dict(checkpoint, strict=False)
-            else:
-                model = checkpoint
-            
+            model.load_state_dict(checkpoint, strict=False)
             model.eval()
-            models['mlp'] = {'model': model, 'type': 'mlp_pytorch', 'input_shape': (317,)}
+            models['mlp'] = {'model': model, 'type': 'cnn', 'input_shape': (1, chunk_size)}
     except Exception as e:
         st.warning(f"Could not load MLP: {e}")
     
@@ -279,6 +296,52 @@ def load_models():
     except Exception as e:
         pass
     
+    # ==================== MLP on Features (PyTorch) ====================
+    try:
+        mlp_feat_path = SAVED_MODELS_DIR / "mlp_features" / "mlp_features_model.pth"
+        if mlp_feat_path.exists():
+            class FeatureMLP(torch.nn.Module):
+                """Must match models/mlp_features/train.py exactly."""
+                def __init__(self, input_size, num_classes):
+                    super().__init__()
+                    self.net = torch.nn.Sequential(
+                        torch.nn.Linear(input_size, 512),
+                        torch.nn.BatchNorm1d(512),
+                        torch.nn.ReLU(),
+                        torch.nn.Dropout(0.3),
+                        torch.nn.Linear(512, 256),
+                        torch.nn.BatchNorm1d(256),
+                        torch.nn.ReLU(),
+                        torch.nn.Dropout(0.3),
+                        torch.nn.Linear(256, 128),
+                        torch.nn.BatchNorm1d(128),
+                        torch.nn.ReLU(),
+                        torch.nn.Dropout(0.2),
+                        torch.nn.Linear(128, num_classes),
+                    )
+                
+                def forward(self, x):
+                    return self.net(x)
+            
+            model = FeatureMLP(317, num_classes)
+            checkpoint = torch.load(mlp_feat_path, map_location="cpu")
+            model.load_state_dict(checkpoint, strict=False)
+            model.eval()
+            models['mlp_features'] = {'model': model, 'type': 'mlp_features', 'input_shape': (317,)}
+    except Exception as e:
+        st.warning(f"Could not load MLP (features): {e}")
+    
+    # ==================== Ensemble (virtual model) ====================
+    # If we have RF + XGBoost + ResNet, register ensemble as available
+    ensemble_components = ['random_forest', 'xgboost', 'resnet']
+    if all(comp in models for comp in ensemble_components):
+        models['ensemble'] = {
+            'model': None,
+            'type': 'ensemble',
+            'components': ensemble_components,
+            'weights': {'random_forest': 0.40, 'xgboost': 0.35, 'resnet': 0.25},
+        }
+    
     return models, labels
 
 
@@ -294,12 +357,12 @@ def predict_file(file_bytes, models, labels, cleaned_data=None):
     predictions = {}
     
     try:
-        # Get raw bytes for PyTorch models
-        raw_bytes = np.frombuffer(data_to_process[:4096], dtype=np.uint8)
+        # Get raw bytes for PyTorch models — normalize to [0, 1] like training
+        raw_bytes = np.frombuffer(data_to_process[:4096], dtype=np.uint8).astype(np.float32) / 255.0
         if len(raw_bytes) < 4096:
             raw_bytes = np.pad(raw_bytes, (0, 4096 - len(raw_bytes)), mode='constant')
         
-        # Extract features for sklearn and MLP models
+        # Extract features for sklearn models
         features = extract_features(data_to_process)
         
         num_classes = len(labels) if labels else 22
@@ -317,11 +380,27 @@ def predict_file(file_bytes, models, labels, cleaned_data=None):
                         output = model(x)
                     probs = torch.softmax(output, dim=1)[0].numpy()
                 
-                elif model_type == 'mlp_pytorch':
+                elif model_type == 'mlp_features':
+                    # Use engineered features for MLP-features model
                     x = torch.FloatTensor(features).unsqueeze(0)
                     with torch.no_grad():
                         output = model(x)
                     probs = torch.softmax(output, dim=1)[0].numpy()
+                
+                elif model_type == 'ensemble':
+                    # Weighted combination of component model probabilities
+                    components = model_info['components']
+                    weights = model_info['weights']
+                    combined_probs = np.zeros(num_classes)
+                    
+                    for comp_name in components:
+                        if comp_name in predictions:
+                            combined_probs += weights[comp_name] * predictions[comp_name]['probabilities']
+                    
+                    if np.sum(combined_probs) > 0:
+                        probs = combined_probs
+                    else:
+                        continue
                 
                 elif model_type == 'sklearn':
                     try:
@@ -383,3 +462,4 @@ def predict_file(file_bytes, models, labels, cleaned_data=None):
         import traceback
         st.error(traceback.format_exc())
         return None
+

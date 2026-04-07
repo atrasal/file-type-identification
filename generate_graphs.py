@@ -377,6 +377,56 @@ def plot_summary_table(results):
     return fig
 
 
+def plot_feature_importance():
+    """Plot top-20 feature importances from Random Forest model."""
+    import joblib
+    rf_path = "saved_models/random_forest/rf_model.joblib"
+    if not os.path.exists(rf_path):
+        print("  ⏭️  Random Forest model not found, skipping feature importance")
+        return None
+
+    try:
+        sys.path.insert(0, os.path.dirname(__file__))
+        from utils.feature_engineering import get_feature_names
+
+        saved = joblib.load(rf_path)
+        model = saved['model'] if isinstance(saved, dict) else saved
+        importances = model.feature_importances_
+
+        feature_names = get_feature_names()
+        if len(feature_names) != len(importances):
+            feature_names = [f"Feature {i}" for i in range(len(importances))]
+
+        # Get top 20 features
+        top_indices = np.argsort(importances)[-20:][::-1]
+        top_names = [feature_names[i] for i in top_indices]
+        top_values = importances[top_indices]
+
+        fig, ax = plt.subplots(figsize=(12, 7))
+        colors = plt.cm.viridis(np.linspace(0.3, 0.9, len(top_names)))
+        bars = ax.barh(range(len(top_names)), top_values, color=colors, edgecolor='black', linewidth=0.5)
+
+        ax.set_yticks(range(len(top_names)))
+        ax.set_yticklabels(top_names, fontsize=10)
+        ax.invert_yaxis()
+        ax.set_xlabel("Feature Importance (Gini)", fontsize=12)
+        ax.set_title("Top 20 Feature Importances (Random Forest)", fontsize=14, fontweight='bold')
+
+        # Add value labels
+        for bar, val in zip(bars, top_values):
+            ax.text(bar.get_width() + 0.001, bar.get_y() + bar.get_height() / 2,
+                    f"{val:.4f}", va='center', fontsize=9)
+
+        plt.tight_layout()
+        path = os.path.join(GRAPHS_DIR, "feature_importance.png")
+        fig.savefig(path, dpi=150, bbox_inches='tight')
+        print(f"  ✅ {path}")
+        return fig
+    except Exception as e:
+        print(f"  ⚠️  Could not generate feature importance: {e}")
+        return None
+
+
 def main():
     parser = argparse.ArgumentParser(description="Generate comparison graphs from training results")
     parser.add_argument('--show', action='store_true', help='Display graphs interactively')
@@ -396,6 +446,7 @@ def main():
     figs.append(plot_training_time_vs_accuracy(results))
     figs.append(plot_dataset_distribution(results))
     figs.append(plot_summary_table(results))
+    figs.append(plot_feature_importance())
 
     print(f"\n✅ All graphs saved to {GRAPHS_DIR}/")
 
@@ -409,3 +460,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
