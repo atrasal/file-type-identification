@@ -19,6 +19,7 @@ Thumbs.db
 *.npy
 *.npz
 *.png
+!results/graphs/*.png
 *.jpg
 
 # Fragment datasets
@@ -39,9 +40,10 @@ saved_models/cnn/
 # XGBoost model excluded due to size (91 MB)
 saved_models/xgboost/
 
-# Generated graphs (regenerated via generate_graphs.py)
+# Generated graphs at root of results/ (regenerated via generate_graphs.py)
 results/*.png
 results/*.pdf
+# Note: results/graphs/*.png ARE tracked (whitelisted above)
 
 # Report images (regenerated via generate_report_graphs.py)
 report/report_images/

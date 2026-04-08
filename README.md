@@ -180,20 +180,40 @@ python predict.py predict_input/ --model rf --save-csv
 
 Trained on **22 file types** with **~1M total fragments** (712K train / 153K val / 153K test).
 
-| Model | Accuracy | Precision | Recall | F1 (macro) | Train Time |
-|---|---|---|---|---|---|
-| **Ensemble (RF+XGB+ResNet)** | **—** | **—** | **—** | **—** | **inference only** |
-| **XGBoost** | **64.3%** | 79.1% | **81.1%** | **79.8%** | 33.7 min |
-| **Random Forest** | 62.6% | **82.2%** | 76.4% | 77.3% | 10.2 min |
-| **ResNet** | 58.5% | 74.9% | 77.8% | 75.4% | 20.7 hrs |
-| MLP (features) | — | — | — | — | ~5 min |
-| CNN | 42.8% | 52.5% | 59.6% | 54.0% | 8.0 hrs |
-| LeNet | 42.8% | 49.0% | 58.6% | 51.9% | 2.8 hrs |
-| SVM | 36.4% | 42.5% | 59.5% | 43.4% | 58.2 min |
-| LSTM | 40.9% | 42.0% | 57.4% | 42.9% | 19.3 hrs |
-| MLP (raw bytes) | 2.8% | 13.7% | 12.4% | 6.5% | 49.9 min |
+| Model | Accuracy | Precision | Recall | F1 (macro) |
+|---|---|---|---|---|
+| **Ensemble (RF+XGB+ResNet)** | **66.5%** | **82.0%** | **81.5%** | **81.0%** |
+| XGBoost | 64.3% | 79.1% | 81.1% | 79.8% |
+| Random Forest | 62.6% | 82.2% | 76.4% | 77.3% |
+| ResNet | 60.5% | 76.3% | 78.3% | 76.6% |
+| LSTM | 54.2% | 67.2% | 72.5% | 68.6% |
+| MLP (features) | 49.5% | 60.9% | 69.6% | 61.3% |
+| CNN | 43.0% | 56.6% | 58.7% | 56.4% |
+| LeNet | 41.3% | 50.2% | 55.3% | 50.4% |
+| SVM | 36.4% | 42.5% | 59.5% | 43.4% |
+| MLP (raw bytes) | 34.2% | 34.6% | 41.5% | 34.5% |
 
-> **Best single model:** XGBoost with 500 boosted trees achieves **79.8% macro F1** on 317 engineered features in just 34 minutes. Random Forest follows closely at 77.3% F1. Text-based formats (HTML, CSS, JSON) are classified near-perfectly (F1 > 0.96), while compressed archives (gzip, tar, swf) remain challenging (F1 < 0.43) due to near-identical byte distributions. The weighted ensemble of RF + XGBoost + ResNet is expected to surpass both. MLP (raw bytes) is included as an intentional ablation baseline demonstrating the critical importance of feature engineering.
+> **Best overall:** Weighted Ensemble (RF + XGBoost + ResNet) achieves **81.0% macro F1**. Best single model: XGBoost at **79.8% F1** with 317 engineered features. Text formats (HTML, CSS, JSON, RTF) are classified near-perfectly (F1 > 0.95), while compressed archives (GZIP, TAR, SWF) remain challenging (F1 < 0.45). The MLP ablation (34.5% raw → 61.3% features) demonstrates the critical importance of feature engineering.
+
+### Graphs
+
+All performance graphs are in `results/graphs/`:
+
+| Graph | Description |
+|---|---|
+| `model_comparison.png` | Bar chart — Accuracy, Precision, Recall, F1 for all 10 models |
+| `f1_ranking.png` | Horizontal ranking by macro F1 score |
+| `per_class_f1.png` | Grouped bar chart of F1 per file type |
+| `per_class_f1_heatmap.png` | Heatmap — all 22 types × 10 models |
+| `training_curves.png` | Train/val loss and accuracy for DL models |
+| `confusion_matrices.png` | Combined confusion matrices |
+| `confusion_matrix_<model>.png` | Individual confusion matrix per model |
+| `ablation_study.png` | Feature engineering impact (MLP raw vs features vs RF) |
+| `feature_importance.png` | Top 20 feature importances from Random Forest |
+| `dataset_distribution.png` | Class imbalance visualization |
+| `summary_table.png` | Formatted metrics summary table |
+
+Regenerate with: `python generate_graphs.py`
 
 ## Data Pipeline
 

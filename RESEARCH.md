@@ -6,7 +6,7 @@
 
 ## Abstract
 
-We present a comprehensive machine learning system for classifying file types from raw 4096-byte binary fragments — the smallest recoverable units from disk storage — without access to file extensions, headers, footers, or metadata. This scenario arises frequently in digital forensics when file system structures are destroyed through intentional tampering, hardware failure, or data corruption. We evaluate **ten model architectures** spanning traditional machine learning (Random Forest, XGBoost, SVM), deep learning (CNN, ResNet, LeNet, LSTM, MLP), and ensemble methods across **22 file types** and over **1 million binary fragments**. Our results show that a weighted ensemble of Random Forest, XGBoost, and ResNet achieves the strongest overall performance, while Random Forest with 317 hand-crafted byte-level features provides the best single-model F1 score at 77.1%. We demonstrate that feature engineering (byte histograms, Shannon entropy, compression ratio, n-gram statistics) is critical — the same MLP architecture improves from 3% to over 55% accuracy when trained on engineered features rather than raw bytes. We provide a fully interactive Streamlit dashboard for model comparison, visualization, and real-time file type prediction.
+We present a comprehensive machine learning system for classifying file types from raw 4096-byte binary fragments — the smallest recoverable units from disk storage — without access to file extensions, headers, footers, or metadata. This scenario arises frequently in digital forensics when file system structures are destroyed through intentional tampering, hardware failure, or data corruption. We evaluate **ten model architectures** spanning traditional machine learning (Random Forest, XGBoost, SVM), deep learning (CNN, ResNet, LeNet, LSTM, MLP), and ensemble methods across **22 file types** and over **1 million binary fragments**. Our results show that a weighted ensemble of Random Forest, XGBoost, and ResNet achieves the strongest overall performance with **81.0% macro F1**, while XGBoost with 317 hand-crafted byte-level features provides the best single-model F1 score at **79.8%**. We demonstrate that feature engineering (byte histograms, Shannon entropy, compression ratio, n-gram statistics) is critical — the same MLP architecture improves from 34.5% to 61.3% F1 when trained on engineered features rather than raw bytes. We provide a fully interactive Streamlit dashboard for model comparison, visualization, and real-time file type prediction.
 
 ---
 
@@ -541,16 +541,18 @@ Results from training on **22 file types** with **~1M total fragments** (712K tr
 
 | Model | Accuracy | Precision | Recall | F1 (macro) | Val F1 | Train Time |
 |---|---|---|---|---|---|---|
+| **Ensemble (RF+XGB+ResNet)** | **66.5%** | **82.0%** | **81.5%** | **81.0%** | — | inference only |
 | **XGBoost** | **64.3%** | 79.1% | **81.1%** | **79.8%** | 79.7% | 33.7 min |
 | **Random Forest** | 62.6% | **82.2%** | 76.4% | 77.3% | 77.5% | 10.2 min |
-| **ResNet** | 58.5% | 74.9% | 77.8% | 75.4% | 75.4% | 20.7 hrs |
-| CNN | 42.8% | 52.5% | 59.6% | 54.0% | 53.7% | 8.0 hrs |
-| LeNet | 42.8% | 49.0% | 58.6% | 51.9% | 52.6% | 2.8 hrs |
-| LSTM | 40.9% | 42.0% | 57.4% | 42.9% | 43.3% | 19.3 hrs |
+| **ResNet** | 60.5% | 76.3% | 78.3% | 76.6% | 76.4% | 12.4 hrs |
+| LSTM | 54.2% | 67.2% | 72.5% | 68.6% | — | 19.3 hrs |
+| MLP (features) | 49.5% | 60.9% | 69.6% | 61.3% | 61.0% | ~5 min |
+| CNN | 43.0% | 56.6% | 58.7% | 56.4% | 55.8% | 16.0 hrs |
+| LeNet | 41.3% | 50.2% | 55.3% | 50.4% | 52.6% | 2.9 hrs |
 | SVM | 36.4% | 42.5% | 59.5% | 43.4% | 44.1% | 58.2 min |
-| MLP (raw bytes) | 2.8% | 13.7% | 12.4% | 6.5% | 6.5% | 49.9 min |
+| MLP (raw bytes) | 34.2% | 34.6% | 41.5% | 34.5% | — | 1.96 hrs |
 
-### 6.2 Per-Class Performance (Random Forest — Best Model)
+### 6.2 Per-Class Performance (Ensemble — Best Model)
 
 | File Type | F1 Score | Difficulty | Why |
 |---|---|---|---|
@@ -581,12 +583,14 @@ Results from training on **22 file types** with **~1M total fragments** (712K tr
 
 ### 6.4 Key Findings
 
-1. **Feature engineering dominates** — Random Forest with 317 engineered features achieves the best F1 (77.1%) while training in only 3 minutes, outperforming all DL models that train for hours
-2. **ResNet is the best DL model** — residual connections and batch normalization enable it to reach 75.4% F1, close to RF but requiring 20+ hours of training
-3. **Class weighting improves minority class recall** — weighted loss functions increase recall on rare classes (CSS, HTML, ELF) at the cost of some raw accuracy on majority classes
-4. **Compressed formats are fundamentally hard** — GZIP, TAR, SWF, and 7ZIP have F1 < 0.43 because their byte distributions are nearly identical (high entropy, near-uniform)
-5. **Text formats are trivially separable** — HTML, CSS, JSON, JavaScript, and RTF achieve F1 > 0.94 due to distinctive ASCII patterns
-6. **MLP fails on this task** — fully connected layers without spatial induction bias cannot learn useful byte-level patterns from raw 4096-dimensional input
+1. **Feature engineering dominates** — Random Forest with 317 engineered features achieves 77.3% macro F1 while training in only 10 minutes, outperforming most DL models that train for hours
+2. **Ensemble is the best overall** — Weighted soft voting of RF + XGBoost + ResNet achieves **81.0% macro F1**, surpassing all individual models
+3. **ResNet is the best DL model** — residual connections and batch normalization enable it to reach 76.6% F1, close to RF but requiring 12+ hours of training
+4. **LSTM benefits from extended training** — LSTM improved significantly to 68.6% F1 with proper training (30 epochs vs earlier undertraining), making it the 5th strongest model
+5. **Class weighting improves minority class recall** — weighted loss functions increase recall on rare classes (CSS, HTML, ELF) at the cost of some raw accuracy on majority classes
+6. **Compressed formats are fundamentally hard** — GZIP, TAR, SWF, and 7ZIP have F1 < 0.50 because their byte distributions are nearly identical (high entropy, near-uniform)
+7. **Text formats are trivially separable** — HTML, CSS, JSON, JavaScript, and RTF achieve F1 > 0.95 due to distinctive ASCII patterns
+8. **Feature engineering ablation is conclusive** — MLP on raw bytes (34.5% F1) vs MLP on 317 features (61.3% F1) demonstrates the critical impact, with a +26.8pp improvement from features alone
 
 ### 6.5 Analysis
 
@@ -687,13 +691,13 @@ Beyond classifying file types, cluster fragments from the same original file usi
 
 We presented a comprehensive machine learning system for file type identification from raw binary fragments, a fundamental problem in digital forensics. Our key findings are:
 
-1. **Feature engineering is decisive**: Random Forest with 317 hand-crafted features achieves 77.1% macro F1 in 3 minutes of training, outperforming all deep learning models that train for hours on raw bytes. The MLP ablation study (3% on raw bytes vs 55%+ on features) demonstrates this conclusively.
+1. **Feature engineering is decisive**: Random Forest with 317 hand-crafted features achieves 77.3% macro F1 in 10 minutes of training, outperforming most deep learning models that train for hours on raw bytes. The MLP ablation study (34.5% on raw bytes vs 61.3% on features) demonstrates this conclusively.
 
-2. **Ensemble methods improve robustness**: Combining RF, XGBoost, and ResNet via weighted soft voting leverages complementary strengths — RF excels on text formats, ResNet captures spatial byte patterns in binary data — and achieves the highest overall performance.
+2. **Ensemble methods improve robustness**: Combining RF, XGBoost, and ResNet via weighted soft voting achieves **81.0% macro F1** — the highest overall performance — leveraging complementary strengths: RF excels on text formats, ResNet captures spatial byte patterns in binary data.
 
 3. **Compressed formats remain fundamentally challenging**: File types like GZIP, TAR, SWF, and 7ZIP have near-identical byte distributions (high entropy, near-uniform) that are statistically indistinguishable at the fragment level. This is a fundamental information-theoretic limitation, not a model deficiency.
 
-4. **Deep learning requires depth for binary data**: ResNet (with residual connections and batch normalization) is the only DL model that approaches tree-based performance. Simpler architectures (LeNet, CNN, LSTM) plateau well below, suggesting that hierarchical feature learning through deep residual networks is necessary for raw byte classification.
+4. **Deep learning requires depth for binary data**: ResNet (76.6% F1) with residual connections and batch normalization is the strongest DL model. LSTM (68.6% F1) benefits from extended training and bidirectional processing. Simpler architectures (CNN at 56.4%, LeNet at 50.4%) plateau well below.
 
 5. **Practical applicability**: The system can classify file fragments in real-time with the Streamlit dashboard, making it usable for actual forensic investigations where speed matters alongside accuracy.
 
