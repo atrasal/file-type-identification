@@ -1,52 +1,108 @@
-# Virtual environment
+# ===== Common =====
+
+# Virtual environments
 venv/
 .venv/
 .venv311/
+ENV/
+env/
 
 # Python
 __pycache__/
 *.pyc
 *.pyo
+*.py[cod]
+*$py.class
+*.so
 *.egg-info/
+*.egg
 
 # OS files
 .DS_Store
 Thumbs.db
+Desktop.ini
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.bak
+temp/
+
+# ===== Classification (Aadi's part) =====
 
 # Data files (too large for git)
-*.bin
-*.hex
-*.npy
-*.npz
-*.png
-!results/graphs/*.png
-*.jpg
+classification/*.bin
+classification/*.hex
+classification/*.npy
+classification/*.npz
+classification/*.png
+!classification/results/graphs/*.png
+classification/*.jpg
 
 # Fragment datasets
-datasets/fragments/
-datasets/train/
-datasets/val/
-datasets/test/
+classification/datasets/fragments/
+classification/datasets/train/
+classification/datasets/val/
+classification/datasets/test/
 
 # Prediction input/output
-predict_input/*.bin
-predictions_*.csv
+classification/predict_input/*.bin
+classification/predictions_*.csv
 
-# Saved models
-# RF model excluded due to size (6.4 GB) — retrain with: python models/random_forest/train.py
-saved_models/random_forest/
-# CNN model excluded due to size (64 MB)
-saved_models/cnn/
-# XGBoost model excluded due to size (91 MB)
-saved_models/xgboost/
+# Saved models (too large for git — retrain locally)
+classification/saved_models/random_forest/
+classification/saved_models/cnn/
+classification/saved_models/xgboost/
 
 # Generated graphs at root of results/ (regenerated via generate_graphs.py)
-results/*.png
-results/*.pdf
-# Note: results/graphs/*.png ARE tracked (whitelisted above)
+classification/results/*.png
+classification/results/*.pdf
 
 # Report images (regenerated via generate_report_graphs.py)
-report/report_images/
+classification/report/report_images/
 
-# Zip files
+# ===== Clustering (Prathamesh's part) =====
+
+# Data files
+clustering/*.bin
+clustering/*.hex
+clustering/*.npy
+clustering/*.npz
+
+# Dataset fragments
+clustering/Train/
+clustering/sequence/dataset/
+
+# Model files
+clustering/*.h5
+clustering/*.pkl
+clustering/*.pt
+clustering/*.pth
+clustering/*.ckpt
+clustering/*.pb
+
+# Plots and visualizations
+clustering/*.png
+clustering/*.jpg
+clustering/*.jpeg
+!clustering/results/visualizations/*.png
+
+# CSV files
+clustering/*.csv
+
+# ===== Root-level =====
 *.zip
